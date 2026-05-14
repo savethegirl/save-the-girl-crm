@@ -5,7 +5,7 @@ import { Search, Trash2, CheckCircle, XCircle, Filter } from "lucide-react";
 import toast from "react-hot-toast";
 
 const initialUsers = [
-  { id: 1, name: "Aarav Shah", type: "Intern", date: "2026-05-10", status: "Approved" },
+  { id: 1, name: "Harsh", type: "Intern", date: "2026-05-10", status: "Approved" },
   { id: 2, name: "Isha Verma", type: "Host", date: "2026-05-09", status: "Pending" },
   { id: 3, name: "Rahul Nair", type: "Visitor", date: "2026-05-08", status: "Rejected" },
   { id: 4, name: "Priya Singh", type: "Donor", date: "2026-05-08", status: "Pending" },

@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, KeyboardEvent } from "react";
-import { X } from "lucide-react";
+import { useForm, SubmitHandler } from 'react-hook-form';
+import toast from 'react-hot-toast';
+import { X, Plus } from "lucide-react";
 
-// The reusable UI component for Emails, Phones, and Caretakers
+// --- INPUT COMPONENTS ---
+
 const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeholder: string, tags: string[], setTags: (tags: string[]) => void }) => {
   const [inputValue, setInputValue] = useState("");
 
@@ -40,7 +43,7 @@ const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeh
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="w-full text-sm outline-none bg-transparent placeholder:text-slate-400"
+          className="w-full text-sm outline-none bg-transparent placeholder:text-slate-400 text-slate-900"
           placeholder={tags.length === 0 ? placeholder : "Type and press Enter to add more..."}
         />
       </div>
@@ -48,15 +51,165 @@ const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeh
   );
 };
 
+type DonatedItem = { item: string; quantity: number };
+
+const KeyValueInput = ({ items, setItems }: { items: DonatedItem[], setItems: (items: DonatedItem[]) => void }) => {
+  const [itemName, setItemName] = useState("");
+  const [itemQty, setItemQty] = useState("");
+
+  const handleAddItem = () => {
+    if (itemName.trim() && itemQty) {
+      setItems([...items, { item: itemName.trim(), quantity: parseInt(itemQty) }]);
+      setItemName("");
+      setItemQty("");
+    }
+  };
+
+  const removeItem = (indexToRemove: number) => {
+    setItems(items.filter((_, index) => index !== indexToRemove));
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-medium text-slate-700">Items Donated (Optional)</label>
+      <div className="p-4 border border-slate-300 rounded-md bg-slate-50 space-y-4">
+        <div className="flex gap-2">
+          <input 
+            type="text" 
+            value={itemName} 
+            onChange={(e) => setItemName(e.target.value)} 
+            placeholder="Item name (e.g. Books, Clothes)" 
+            className="flex-1 p-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <input 
+            type="number" 
+            value={itemQty} 
+            onChange={(e) => setItemQty(e.target.value)} 
+            placeholder="Qty" 
+            min="1"
+            className="w-24 p-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button 
+            type="button" 
+            onClick={handleAddItem}
+            className="p-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        </div>
+        {items.length > 0 && (
+          <ul className="space-y-2">
+            {items.map((entry, index) => (
+              <li key={index} className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded-md text-sm text-slate-700">
+                <span><span className="font-semibold">{entry.quantity}x</span> {entry.item}</span>
+                <button type="button" onClick={() => removeItem(index)} className="text-slate-400 hover:text-red-500">
+                  <X className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// --- MAIN COMPONENT ---
+
+type HostFormInputs = {
+  applicantName: string;
+  eventDate: string;
+  facilityLocation: string;
+  companyCoordinator: string;
+  centerVisited: string;
+  noOfChildren: string;
+  reportUploadLink: string;
+  futurePartnershipRemarks: string;
+  helpedFinancially: string;
+  financialAmount?: string;
+  nextExpectedVisit?: string;
+};
+
+const CENTERS = [
+  "Surya Vihar, Sec-9 Gurgaon",
+  "Tigra Village, Sec-57 Gurgaon",
+  "Noida Sec-63"
+];
+
 export default function HostCertificatePage() {
-  // State for dynamic arrays
   const [emails, setEmails] = useState<string[]>([]);
   const [phones, setPhones] = useState<string[]>([]);
   const [caretakers, setCaretakers] = useState<string[]>([]);
+  const [donatedItems, setDonatedItems] = useState<DonatedItem[]>([]);
   
-  // State for conditional UI fields
-  const [helpedFinancially, setHelpedFinancially] = useState("No");
   const [visitSure, setVisitSure] = useState(true);
+
+  const { 
+    register, 
+    handleSubmit, 
+    reset, 
+    watch,
+    formState: { isSubmitting, errors } 
+  } = useForm<HostFormInputs>({
+    defaultValues: {
+      helpedFinancially: 'No',
+      centerVisited: CENTERS[0]
+    }
+  });
+
+  const currentHelpedFinancially = watch("helpedFinancially");
+
+  const onSubmit: SubmitHandler<HostFormInputs> = async (data) => {
+    if (phones.length === 0) {
+      toast.error("At least one phone number is required.");
+      return;
+    }
+
+    const toastId = toast.loading("Saving host data...");
+
+    const payload = {
+      applicantName: data.applicantName, // Maps to Name of Host
+      certificateType: 'HOST',
+      eventDate: data.eventDate,
+      facilityLocation: data.facilityLocation,
+      companyCoordinator: data.companyCoordinator,
+      centerVisited: data.centerVisited,
+      noOfChildren: data.noOfChildren,
+      phones: phones,
+      emails: emails,
+      caretakers: caretakers,
+      itemsDonated: donatedItems.length > 0 ? donatedItems : null,
+      reportUploadLink: data.reportUploadLink,
+      futurePartnershipRemarks: data.futurePartnershipRemarks,
+      helpedFinancially: data.helpedFinancially === 'Yes',
+      financialAmount: data.financialAmount,
+      nextExpectedVisit: visitSure ? data.nextExpectedVisit : null,
+    };
+
+    try {
+      const response = await fetch('/api/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        toast.success("Host data saved successfully!", { id: toastId });
+        reset();
+        setPhones([]);
+        setEmails([]);
+        setCaretakers([]);
+        setDonatedItems([]);
+        setVisitSure(true);
+      } else {
+        const errorData = await response.json();
+        toast.error(`Failed to save: ${errorData.error || 'Unknown error'}`, { id: toastId });
+      }
+    } catch (error) {
+      console.error("Submission error:", error);
+      toast.error("Network error. Please try again.", { id: toastId });
+    }
+  };
 
   return (
     <div className="p-8 w-full max-w-4xl mx-auto bg-slate-50 min-h-screen text-slate-900">
@@ -65,25 +218,44 @@ export default function HostCertificatePage() {
         <p className="text-sm text-slate-500">Log an event host and generate their certification of appreciation.</p>
       </div>
 
-      <form className="bg-white p-8 rounded-lg border border-slate-200 shadow-sm space-y-8">
+      <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-8 rounded-lg border border-slate-200 shadow-sm space-y-8">
         
         {/* Section 1: Host Basics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Name of Host</label>
-            <input type="text" className="w-full p-2.5 border border-slate-300 rounded-md outline-none bg-white text-slate-900" placeholder="Host name" />
+            <label className="text-sm font-medium text-slate-700">Name of Host<span className="text-red-500 ml-1">*</span></label>
+            <input 
+              {...register("applicantName", { required: true })} 
+              type="text" 
+              className={`w-full p-2.5 border rounded-md outline-none ${errors.applicantName ? 'border-red-500' : 'border-slate-300'}`} 
+              placeholder="Host name" 
+            />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Date of Event</label>
-            <input type="date" className="w-full p-2.5 border border-slate-300 rounded-md outline-none bg-white text-slate-900" />
+            <label className="text-sm font-medium text-slate-700">Date of Event<span className="text-red-500 ml-1">*</span></label>
+            <input 
+              {...register("eventDate", { required: true })} 
+              type="date" 
+              className={`w-full p-2.5 border rounded-md outline-none ${errors.eventDate ? 'border-red-500' : 'border-slate-300'}`} 
+            />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Facility / Location</label>
-            <input type="text" className="w-full p-2.5 border border-slate-300 rounded-md outline-none bg-white text-slate-900" placeholder="Event location" />
+            <label className="text-sm font-medium text-slate-700">Facility / Location<span className="text-red-500 ml-1">*</span></label>
+            <input 
+              {...register("facilityLocation", { required: true })} 
+              type="text" 
+              className={`w-full p-2.5 border rounded-md outline-none ${errors.facilityLocation ? 'border-red-500' : 'border-slate-300'}`} 
+              placeholder="Event location" 
+            />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Company Coordinator</label>
-            <input type="text" className="w-full p-2.5 border border-slate-300 rounded-md outline-none bg-white text-slate-900" placeholder="Coordinator name" />
+            <label className="text-sm font-medium text-slate-700">Company Coordinator<span className="text-red-500 ml-1">*</span></label>
+            <input 
+              {...register("companyCoordinator", { required: true })} 
+              type="text" 
+              className={`w-full p-2.5 border rounded-md outline-none ${errors.companyCoordinator ? 'border-red-500' : 'border-slate-300'}`} 
+              placeholder="Coordinator name" 
+            />
           </div>
         </div>
 
@@ -91,8 +263,8 @@ export default function HostCertificatePage() {
 
         {/* Section 2: Dynamic Contact Arrays */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <TagInput label="Phone Numbers" placeholder="Enter phone and press Enter" tags={phones} setTags={setPhones} />
-          <TagInput label="Email Addresses" placeholder="Enter email and press Enter" tags={emails} setTags={setEmails} />
+          <TagInput label="Phone Numbers *" placeholder="Enter phone and press Enter" tags={phones} setTags={setPhones} />
+          <TagInput label="Email Addresses (Optional)" placeholder="Enter email and press Enter" tags={emails} setTags={setEmails} />
         </div>
 
         <hr className="border-slate-200" />
@@ -100,20 +272,24 @@ export default function HostCertificatePage() {
         {/* Section 3: Event Specifics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Center Visited (MCQ)</label>
-            <select className="w-full p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 outline-none">
-              <option>Sector -9, Gurgaon</option>
-              <option>Sector -57, Gurgaon</option>
-              <option>Noida Sec 63</option>
+            <label className="text-sm font-medium text-slate-700">Center Visited<span className="text-red-500 ml-1">*</span></label>
+            <select {...register("centerVisited", { required: true })} className="w-full p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 outline-none">
+              {CENTERS.map((center, i) => <option key={i} value={center}>{center}</option>)}
             </select>
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">No. of Children Visited</label>
-            <input type="number" min="0" className="w-full p-2.5 border border-slate-300 rounded-md outline-none bg-white text-slate-900" placeholder="e.g. 50" />
+            <input 
+              {...register("noOfChildren")} 
+              type="number" 
+              min="0" 
+              className="w-full p-2.5 border border-slate-300 rounded-md outline-none" 
+              placeholder="e.g. 50" 
+            />
           </div>
           
           <div className="md:col-span-2">
-            <TagInput label="Names of Caretakers" placeholder="Enter caretaker name and press Enter" tags={caretakers} setTags={setCaretakers} />
+            <TagInput label="Names of Caretakers (Optional)" placeholder="Enter caretaker name and press Enter" tags={caretakers} setTags={setCaretakers} />
           </div>
         </div>
 
@@ -121,38 +297,39 @@ export default function HostCertificatePage() {
 
         {/* Section 4: Post-Event Data */}
         <div className="grid grid-cols-1 gap-6">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Items Donated</label>
-            <textarea className="w-full p-2.5 border border-slate-300 rounded-md h-20 outline-none bg-white text-slate-900" placeholder="List items here..."></textarea>
-          </div>
+          <KeyValueInput items={donatedItems} setItems={setDonatedItems} />
+          
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Report Upload (Google Drive Link)</label>
-            <input type="url" className="w-full p-2.5 border border-slate-300 rounded-md outline-none bg-white text-blue-600" placeholder="https://drive.google.com/..." />
+            <input {...register("reportUploadLink")} type="url" className="w-full p-2.5 border border-slate-300 rounded-md outline-none text-blue-600" placeholder="https://drive.google.com/..." />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Future Partnership Remarks</label>
-            <textarea className="w-full p-2.5 border border-slate-300 rounded-md h-20 outline-none bg-white text-slate-900" placeholder="Add remarks..."></textarea>
+            <textarea {...register("futurePartnershipRemarks")} className="w-full p-2.5 border border-slate-300 rounded-md h-20 outline-none" placeholder="Add remarks..."></textarea>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-lg border border-slate-200">
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Have helped financially?</label>
+              <label className="text-sm font-medium text-slate-700">Have helped financially?<span className="text-red-500 ml-1">*</span></label>
               <select 
+                {...register("helpedFinancially", { required: true })} 
                 className="w-full p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 outline-none"
-                value={helpedFinancially}
-                onChange={(e) => setHelpedFinancially(e.target.value)}
               >
                 <option value="No">No</option>
                 <option value="Yes">Yes</option>
               </select>
             </div>
-            {/* Conditional Amount Input */}
-            {helpedFinancially === "Yes" && (
+            {currentHelpedFinancially === "Yes" && (
               <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                <label className="text-sm font-medium text-slate-700">Enter Amount (₹)</label>
-                <input type="number" className="w-full p-2.5 border border-blue-300 rounded-md outline-none bg-white text-slate-900 focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
+                <label className="text-sm font-medium text-slate-700">Enter Amount (₹)<span className="text-red-500 ml-1">*</span></label>
+                <input 
+                  {...register("financialAmount", { required: true })} 
+                  type="number" 
+                  className={`w-full p-2.5 border rounded-md outline-none focus:ring-2 focus:ring-blue-500 ${errors.financialAmount ? 'border-red-500' : 'border-slate-300'}`} 
+                  placeholder="0.00" 
+                />
               </div>
             )}
           </div>
@@ -170,18 +347,30 @@ export default function HostCertificatePage() {
                 Not sure yet
               </label>
             </div>
-            {/* Conditional Date Input */}
             <input 
+              {...register("nextExpectedVisit", { required: visitSure })}
               type="date" 
               disabled={!visitSure}
-              className={`w-full p-2.5 border rounded-md outline-none transition-colors ${!visitSure ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-300 text-slate-900'}`} 
+              className={`w-full p-2.5 border rounded-md outline-none transition-colors ${!visitSure ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-300 text-slate-900'} ${errors.nextExpectedVisit ? 'border-red-500' : ''}`} 
             />
           </div>
         </div>
 
         <div className="pt-4 flex justify-end gap-4">
-          <button type="button" className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors">Cancel</button>
-          <button type="button" className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors shadow-sm">Save Host Data</button>
+          <button 
+            type="button" 
+            onClick={() => { reset(); setPhones([]); setEmails([]); setCaretakers([]); setDonatedItems([]); setVisitSure(true); }}
+            className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+          >
+            Clear
+          </button>
+          <button 
+            type="submit" 
+            disabled={isSubmitting} 
+            className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+          >
+            {isSubmitting ? 'Saving...' : 'Save Host Data'}
+          </button>
         </div>
       </form>
     </div>

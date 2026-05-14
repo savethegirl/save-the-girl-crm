@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, KeyboardEvent } from "react";
-import { X } from "lucide-react";
+import { useForm, SubmitHandler } from 'react-hook-form';
+import toast from 'react-hot-toast';
+import { X, Plus } from "lucide-react";
 
-// Reusing our battle-tested TagInput
+// --- CUSTOM INPUT COMPONENTS ---
+
 const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeholder: string, tags: string[], setTags: (tags: string[]) => void }) => {
   const [inputValue, setInputValue] = useState("");
 
@@ -48,20 +51,182 @@ const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeh
   );
 };
 
+type DonatedItem = { item: string; quantity: number };
+
+const KeyValueInput = ({ items, setItems }: { items: DonatedItem[], setItems: (items: DonatedItem[]) => void }) => {
+  const [itemName, setItemName] = useState("");
+  const [itemQty, setItemQty] = useState("");
+
+  const handleAddItem = () => {
+    if (itemName.trim() && itemQty) {
+      setItems([...items, { item: itemName.trim(), quantity: parseInt(itemQty) }]);
+      setItemName("");
+      setItemQty("");
+    }
+  };
+
+  const removeItem = (indexToRemove: number) => {
+    setItems(items.filter((_, index) => index !== indexToRemove));
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="text-sm font-bold text-slate-900">Items Donated (Required)<span className="text-red-500 ml-1">*</span></label>
+      <div className="p-4 border border-slate-300 rounded-md bg-slate-50 space-y-4">
+        <div className="flex gap-2">
+          <input 
+            type="text" 
+            value={itemName} 
+            onChange={(e) => setItemName(e.target.value)} 
+            placeholder="Item name (e.g. Books, Clothes)" 
+            className="flex-1 p-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <input 
+            type="number" 
+            value={itemQty} 
+            onChange={(e) => setItemQty(e.target.value)} 
+            placeholder="Qty" 
+            min="1"
+            className="w-24 p-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button 
+            type="button" 
+            onClick={handleAddItem}
+            className="p-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition-colors"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+        </div>
+        {items.length > 0 && (
+          <ul className="space-y-2">
+            {items.map((entry, index) => (
+              <li key={index} className="flex justify-between items-center bg-white p-2 border border-slate-200 rounded-md text-sm text-slate-700">
+                <span><span className="font-semibold">{entry.quantity}x</span> {entry.item}</span>
+                <button type="button" onClick={() => removeItem(index)} className="text-slate-400 hover:text-red-500">
+                  <X className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// --- MAIN COMPONENT ---
+
+type DonorFormInputs = {
+  applicantName: string;
+  attendantName: string;
+  logisticsMethod: string;
+  pickupAddress?: string; // Now explicitly optional in the type
+  pickupChargesPaidBy: string;
+  pickupDoneBy: string;
+  centerVisited: string;
+  facebook: string;
+  instagram: string;
+  linkedin: string;
+  twitter: string;
+  helpedFinancially: string;
+  financialAmount?: string;
+  nextFollowUpDue?: string;
+  photosLink: string;
+  remarks: string;
+};
+
+const CENTERS = [
+  "Surya Vihar, Sec-9 Gurgaon",
+  "Tigra Village, Sec-57 Gurgaon",
+  "Noida Sec-63"
+];
+
 export default function DonationCertificatePage() {
-  // Dynamic Arrays
   const [emails, setEmails] = useState<string[]>([]);
   const [phones, setPhones] = useState<string[]>([]);
-  const [otherItems, setOtherItems] = useState<string[]>([]);
-  
-  // Conditional UI State
-  const [logistics, setLogistics] = useState("Drop");
-  const [purpose, setPurpose] = useState("General");
-  const [helpedFinancially, setHelpedFinancially] = useState("No");
+  const [donatedItems, setDonatedItems] = useState<DonatedItem[]>([]);
   const [visitSure, setVisitSure] = useState(true);
 
-  // Predefined Items List
-  const standardItems = ["Used Clothes", "Other Stationery Items", "Eatables", "Registers", "Sanitary Pads"];
+  const { 
+    register, 
+    handleSubmit, 
+    reset, 
+    watch,
+    formState: { isSubmitting, errors } 
+  } = useForm<DonorFormInputs>({
+    defaultValues: {
+      logisticsMethod: 'Drop',
+      helpedFinancially: 'No',
+      centerVisited: CENTERS[0],
+      pickupChargesPaidBy: 'Donor'
+    }
+  });
+
+  const currentLogistics = watch("logisticsMethod");
+  const currentHelpedFinancially = watch("helpedFinancially");
+
+  const onSubmit: SubmitHandler<DonorFormInputs> = async (data) => {
+    if (phones.length === 0) {
+      toast.error("At least one phone number is required.");
+      return;
+    }
+    if (donatedItems.length === 0) {
+      toast.error("You must add at least one donated item.");
+      return;
+    }
+
+    const toastId = toast.loading("Saving donation data...");
+
+    let compiledRemarks = data.remarks || "";
+    if (data.logisticsMethod === 'Pickup') {
+      compiledRemarks = `[PICKUP DETAILS] Paid by: ${data.pickupChargesPaidBy} | Handled by: ${data.pickupDoneBy || 'N/A'}. ${compiledRemarks}`;
+    }
+
+    const payload = {
+      applicantName: data.applicantName,
+      certificateType: 'DONOR',
+      attendantName: data.attendantName,
+      phones: phones,
+      emails: emails,
+      logisticsMethod: data.logisticsMethod,
+      facilityLocation: data.logisticsMethod === 'Pickup' ? data.pickupAddress || "" : data.centerVisited,
+      itemsDonated: donatedItems,
+      helpedFinancially: data.helpedFinancially === 'Yes',
+      financialAmount: data.financialAmount,
+      nextFollowUpDue: visitSure ? data.nextFollowUpDue : null,
+      uploadPhotosLink: data.photosLink,
+      additionalRemarks: compiledRemarks,
+      socialLinks: {
+        facebook: data.facebook,
+        instagram: data.instagram,
+        linkedin: data.linkedin,
+        twitter: data.twitter
+      }
+    };
+
+    try {
+      const response = await fetch('/api/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        toast.success("Donation data saved successfully!", { id: toastId });
+        reset();
+        setPhones([]);
+        setEmails([]);
+        setDonatedItems([]);
+        setVisitSure(true);
+      } else {
+        const errorData = await response.json();
+        toast.error(`Failed to save: ${errorData.error || 'Unknown error'}`, { id: toastId });
+      }
+    } catch (error) {
+      console.error("Submission error:", error);
+      toast.error("Network error. Please try again.", { id: toastId });
+    }
+  };
 
   return (
     <div className="p-8 w-full max-w-4xl mx-auto bg-slate-50 min-h-screen text-slate-900">
@@ -70,19 +235,29 @@ export default function DonationCertificatePage() {
         <p className="text-sm text-slate-500">Record item donations, logistics, and generate donor certificates.</p>
       </div>
 
-      <form className="bg-white p-8 rounded-lg border border-slate-200 shadow-sm space-y-8">
+      <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-8 rounded-lg border border-slate-200 shadow-sm space-y-8">
         
         {/* Section 1: Donor Basics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">{"Donor's Name"}</label>
-            <input type="text" className="w-full p-2.5 border border-slate-300 rounded-md outline-none bg-white text-slate-900" placeholder="Full name" />
+            <label className="text-sm font-medium text-slate-700">Donor Name<span className="text-red-500 ml-1">*</span></label>
+            <input 
+              {...register("applicantName", { required: true })} 
+              type="text" 
+              className={`w-full p-2.5 border rounded-md outline-none ${errors.applicantName ? 'border-red-500' : 'border-slate-300'}`} 
+              placeholder="Full name" 
+            />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">Attendant Name</label>
-            <input type="text" className="w-full p-2.5 border border-slate-300 rounded-md outline-none bg-white text-slate-900" placeholder="Assigned attendant" />
+            <label className="text-sm font-medium text-slate-700">Attendant Name<span className="text-red-500 ml-1">*</span></label>
+            <input 
+              {...register("attendantName", { required: true })} 
+              type="text" 
+              className={`w-full p-2.5 border rounded-md outline-none ${errors.attendantName ? 'border-red-500' : 'border-slate-300'}`} 
+              placeholder="Assigned attendant" 
+            />
           </div>
-          <TagInput label="Phone Numbers" placeholder="Enter phone and press Enter" tags={phones} setTags={setPhones} />
+          <TagInput label="Phone Numbers *" placeholder="Enter phone and press Enter" tags={phones} setTags={setPhones} />
           <TagInput label="Email Addresses" placeholder="Enter email and press Enter" tags={emails} setTags={setEmails} />
         </div>
 
@@ -91,11 +266,10 @@ export default function DonationCertificatePage() {
         {/* Section 2: Logistics Engine */}
         <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 space-y-6">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-900">Logistics Method (Pickup or Drop)</label>
+            <label className="text-sm font-medium text-slate-900">Logistics Method<span className="text-red-500 ml-1">*</span></label>
             <select 
+              {...register("logisticsMethod", { required: true })} 
               className="w-full md:w-1/2 p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
-              value={logistics}
-              onChange={(e) => setLogistics(e.target.value)}
             >
               <option value="Drop">Drop off at Center</option>
               <option value="Pickup">Pickup Required</option>
@@ -103,31 +277,39 @@ export default function DonationCertificatePage() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in">
-            {logistics === "Pickup" ? (
+            {currentLogistics === "Pickup" ? (
               <>
                 <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-medium text-slate-700">Address of Pickup</label>
-                  <textarea className="w-full p-2.5 border border-slate-300 rounded-md h-20 outline-none bg-white text-slate-900" placeholder="Enter full pickup address..."></textarea>
+                  {/* Validation removed, marked optional */}
+                  <label className="text-sm font-medium text-slate-700">Address of Pickup (Optional)</label>
+                  <textarea 
+                    {...register("pickupAddress")} 
+                    className="w-full p-2.5 border border-slate-300 rounded-md h-20 outline-none focus:ring-2 focus:ring-blue-500" 
+                    placeholder="Enter full pickup address if available..."
+                  ></textarea>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">Pickup Charges Paid By</label>
-                  <select className="w-full p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 outline-none">
-                    <option>Donor</option>
-                    <option>Organisation</option>
+                  <select {...register("pickupChargesPaidBy")} className="w-full p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 outline-none">
+                    <option value="Donor">Donor</option>
+                    <option value="Organisation">Organisation</option>
                   </select>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">Pickup Done By</label>
-                  <input type="text" className="w-full p-2.5 border border-slate-300 rounded-md outline-none bg-white text-slate-900" placeholder="Name of logistics handler" />
+                  <input 
+                    {...register("pickupDoneBy")} 
+                    type="text" 
+                    className="w-full p-2.5 border border-slate-300 rounded-md outline-none" 
+                    placeholder="Name of logistics handler" 
+                  />
                 </div>
               </>
             ) : (
               <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium text-slate-700">Center Visited</label>
-                <select className="w-full p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 outline-none">
-                  <option>Surya Vihar, Sec-9 Gurgaon</option>
-                  <option>Tigra Village, Sec-57 Gurgaon</option>
-                  <option>Noida Sec-63</option>
+                <label className="text-sm font-medium text-slate-700">Center Visited<span className="text-red-500 ml-1">*</span></label>
+                <select {...register("centerVisited", { required: true })} className="w-full p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 outline-none">
+                  {CENTERS.map((center, i) => <option key={i} value={center}>{center}</option>)}
                 </select>
               </div>
             )}
@@ -138,36 +320,20 @@ export default function DonationCertificatePage() {
 
         {/* Section 3: Inventory */}
         <div className="space-y-6">
-          <div className="space-y-3">
-            <label className="text-sm font-bold text-slate-900">Items Donated (Select all that apply)</label>
-            <div className="flex flex-wrap gap-4">
-              {standardItems.map((item) => (
-                <label key={item} className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer bg-slate-50 px-3 py-2 rounded-md border border-slate-200 hover:bg-slate-100 transition-colors">
-                  <input type="checkbox" className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" />
-                  {item}
-                </label>
-              ))}
-            </div>
-          </div>
-          
-          <div className="pt-2">
-            <TagInput label="Other Items (Enter item and quantity)" placeholder="e.g. '50x Blankets' and press Enter" tags={otherItems} setTags={setOtherItems} />
-          </div>
+          <KeyValueInput items={donatedItems} setItems={setDonatedItems} />
         </div>
 
         <hr className="border-slate-200" />
 
-        {/* Section 4: Visit Purpose & Socials */}
+        {/* Section 4: Socials */}
         <div className="grid grid-cols-1 gap-6">
-          
-          
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-            <label className="block text-sm font-medium text-slate-700 mb-4">Social Media Links</label>
+            <label className="block text-sm font-medium text-slate-700 mb-4">Social Media Links (Optional)</label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input type="url" className="w-full p-2 border border-slate-300 rounded-md outline-none bg-white text-slate-900 text-sm" placeholder="Facebook URL" />
-              <input type="url" className="w-full p-2 border border-slate-300 rounded-md outline-none bg-white text-slate-900 text-sm" placeholder="Instagram URL" />
-              <input type="url" className="w-full p-2 border border-slate-300 rounded-md outline-none bg-white text-slate-900 text-sm" placeholder="LinkedIn URL" />
-              <input type="url" className="w-full p-2 border border-slate-300 rounded-md outline-none bg-white text-slate-900 text-sm" placeholder="Twitter URL" />
+              <input {...register("facebook")} type="url" className="w-full p-2 border border-slate-300 rounded-md outline-none" placeholder="Facebook URL" />
+              <input {...register("instagram")} type="url" className="w-full p-2 border border-slate-300 rounded-md outline-none" placeholder="Instagram URL" />
+              <input {...register("linkedin")} type="url" className="w-full p-2 border border-slate-300 rounded-md outline-none" placeholder="LinkedIn URL" />
+              <input {...register("twitter")} type="url" className="w-full p-2 border border-slate-300 rounded-md outline-none" placeholder="Twitter URL" />
             </div>
           </div>
         </div>
@@ -176,20 +342,24 @@ export default function DonationCertificatePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-lg border border-slate-200">
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Have helped financially?</label>
+              <label className="text-sm font-medium text-slate-700">Have helped financially?<span className="text-red-500 ml-1">*</span></label>
               <select 
+                {...register("helpedFinancially", { required: true })} 
                 className="w-full p-2.5 border border-slate-300 rounded-md bg-white text-slate-900 outline-none"
-                value={helpedFinancially}
-                onChange={(e) => setHelpedFinancially(e.target.value)}
               >
                 <option value="No">No</option>
                 <option value="Yes">Yes</option>
               </select>
             </div>
-            {helpedFinancially === "Yes" && (
+            {currentHelpedFinancially === "Yes" && (
               <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                <label className="text-sm font-medium text-slate-700">Enter Amount (₹)</label>
-                <input type="number" className="w-full p-2.5 border border-blue-300 rounded-md outline-none bg-white text-slate-900 focus:ring-2 focus:ring-blue-500" placeholder="0.00" />
+                <label className="text-sm font-medium text-slate-700">Enter Amount (₹)<span className="text-red-500 ml-1">*</span></label>
+                <input 
+                  {...register("financialAmount", { required: true })} 
+                  type="number" 
+                  className={`w-full p-2.5 border rounded-md outline-none focus:ring-2 focus:ring-blue-500 ${errors.financialAmount ? 'border-red-500' : 'border-slate-300'}`} 
+                  placeholder="0.00" 
+                />
               </div>
             )}
           </div>
@@ -208,9 +378,10 @@ export default function DonationCertificatePage() {
               </label>
             </div>
             <input 
+              {...register("nextFollowUpDue", { required: visitSure })}
               type="date" 
               disabled={!visitSure}
-              className={`w-full p-2.5 border rounded-md outline-none transition-colors ${!visitSure ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-300 text-slate-900'}`} 
+              className={`w-full p-2.5 border rounded-md outline-none transition-colors ${!visitSure ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-300 text-slate-900'} ${errors.nextFollowUpDue ? 'border-red-500' : ''}`} 
             />
           </div>
         </div>
@@ -218,17 +389,29 @@ export default function DonationCertificatePage() {
         <div className="grid grid-cols-1 gap-6">
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Upload Photos (Google Drive Link)</label>
-            <input type="url" className="w-full p-2.5 border border-slate-300 rounded-md outline-none bg-white text-blue-600" placeholder="https://drive.google.com/..." />
+            <input {...register("photosLink")} type="url" className="w-full p-2.5 border border-slate-300 rounded-md outline-none text-blue-600" placeholder="https://drive.google.com/..." />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Remarks</label>
-            <textarea className="w-full p-2.5 border border-slate-300 rounded-md h-20 outline-none bg-white text-slate-900" placeholder="Add any extra notes here..."></textarea>
+            <textarea {...register("remarks")} className="w-full p-2.5 border border-slate-300 rounded-md h-20 outline-none" placeholder="Add any extra notes here..."></textarea>
           </div>
         </div>
 
         <div className="pt-4 flex justify-end gap-4">
-          <button type="button" className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors">Cancel</button>
-          <button type="button" className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors shadow-sm">Save Donation Data</button>
+          <button 
+            type="button" 
+            onClick={() => { reset(); setPhones([]); setEmails([]); setDonatedItems([]); setVisitSure(true); }}
+            className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+          >
+            Clear
+          </button>
+          <button 
+            type="submit" 
+            disabled={isSubmitting} 
+            className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+          >
+            {isSubmitting ? 'Saving...' : 'Save Donation Data'}
+          </button>
         </div>
       </form>
     </div>
