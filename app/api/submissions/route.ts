@@ -68,3 +68,64 @@ export async function POST(request: Request) {
     );
   }
 }
+
+export async function GET() {
+  try {
+    const submissions = await prisma.submission.findMany({
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    return NextResponse.json({ success: true, data: submissions }, { status: 200 });
+  } catch (error: any) {
+    console.error("Fetch Error:", error);
+    return NextResponse.json(
+      { success: false, error: error.message || "Failed to fetch submissions" }, 
+      { status: 500 }
+    );
+  }
+}
+
+// --- UPDATE STATUS ---
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, status } = body;
+
+    if (!id || !status) {
+      return NextResponse.json({ success: false, error: "Missing ID or Status" }, { status: 400 });
+    }
+
+    const updatedSubmission = await prisma.submission.update({
+      where: { id },
+      data: { status }
+    });
+
+    return NextResponse.json({ success: true, data: updatedSubmission });
+  } catch (error: any) {
+    console.error("Update Error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+// --- DELETE RECORD ---
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: "Missing ID" }, { status: 400 });
+    }
+
+    await prisma.submission.delete({
+      where: { id }
+    });
+
+    return NextResponse.json({ success: true, message: "Deleted successfully" });
+  } catch (error: any) {
+    console.error("Delete Error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
