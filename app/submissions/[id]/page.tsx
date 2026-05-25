@@ -81,6 +81,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
           currentStatus={submission.status} 
           applicantName={submission.applicantName}
           certificateType={submission.certificateType}
+          applicantEmail={submission.emails?.[0]} 
         />
 
         {/* --- MAIN DATA GRID --- */}

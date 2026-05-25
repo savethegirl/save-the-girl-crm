@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/db/prisma';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -36,84 +36,82 @@ export async function POST(req: Request) {
     const pdfDoc = await PDFDocument.create();
     const bgImage = await pdfDoc.embedPng(templateBytes);
     
-    // Make the PDF page exactly the size of your JPG (2000 x 1414)
+    // Make the PDF page exactly the size of your JPG/PNG (2000 x 1414)
     const page = pdfDoc.addPage([bgImage.width, bgImage.height]);
     page.drawImage(bgImage, { x: 0, y: 0, width: bgImage.width, height: bgImage.height });
 
-    // 4. Load and stamp Signature & Stamp
-   const sigPath = path.join(process.cwd(), 'public', 'templates', 'signature.png');
-    const stampPath = path.join(process.cwd(), 'public', 'templates', 'stamp.png');
-    
-    const [sigBytes, stampBytes] = await Promise.all([
-      fs.readFile(sigPath).catch(() => null),
-      fs.readFile(stampPath).catch(() => null)
-    ]);
-
-    if (sigBytes) {
-      const sigImage = await pdfDoc.embedPng(sigBytes);
-      // Your calculated signature placement
-      page.drawImage(sigImage, { x: 1647, y: 157, width: 250, height: 80 }); 
-    }
-
-    if (stampBytes) {
-      const stampImage = await pdfDoc.embedPng(stampBytes);
-      // Placed the stamp on the bottom left to balance the signature
-      page.drawImage(stampImage, { x: 200, y: 150, width: 150, height: 150 });
-    }
-
-    // 5. Stamp the Text Data
-    const { applicantName, postRole, startDate, endDate, createdAt } = submission;
+    // 4. Embed Bold Font & Prepare Text Data
+    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const { applicantName, postRole, startDate, endDate } = submission;
     const textColor = rgb(0.1, 0.1, 0.1);
+    
     const formatDt = (dt: Date | null) => dt ? new Date(dt).toLocaleDateString('en-IN') : 'N/A';
+    
+    // Current date for PDF generation
+    const generationDate = new Date().toLocaleDateString('en-IN');
+    
+    // Center point of a 2000px wide image
+    const center = 1000;
 
     switch (typeKey) {
       case 'VOLUNTEER':
-        page.drawText(formatDt(createdAt), { x: 264, y: 1137, size: 28, color: textColor });
-        page.drawText(applicantName || "Unknown Name", { x: 958, y: 767, size: 56, color: textColor });
-        page.drawText(postRole || "Volunteer", { x: 958, y: 553, size: 36, color: textColor });
-        page.drawText(formatDt(startDate), { x: 687, y: 430, size: 32, color: textColor });
-        page.drawText(formatDt(endDate), { x: 1360, y: 430, size: 32, color: textColor });
+        // Top Left Date
+        page.drawText(generationDate, { x: 160, y: 1137, size: 28, font: boldFont, color: textColor });
+
+        // Center the Name
+        const volNameText = applicantName || "Unknown Name";
+        const volNameWidth = boldFont.widthOfTextAtSize(volNameText, 56);
+        page.drawText(volNameText, { x: center - (volNameWidth / 2), y: 787, size: 56, font: boldFont, color: textColor });
+
+        // Center the Role
+        const volRoleText = postRole || "Volunteer";
+        const volRoleWidth = boldFont.widthOfTextAtSize(volRoleText, 36);
+        page.drawText(volRoleText, { x: center - (volRoleWidth / 2), y: 532, size: 36, font: boldFont, color: textColor });
+
+        // From and To Dates
+        page.drawText(formatDt(startDate), { x: 554, y: 427, size: 32, font: boldFont, color: textColor });
+        page.drawText(formatDt(endDate), { x: 1205, y: 427, size: 32, font: boldFont, color: textColor });
         break;
 
       case 'INTERN':
-        // Date is floating on the middle-left line
-        page.drawText(formatDt(createdAt), { x: 200, y: 850, size: 28, color: textColor });
-        // Name is centered below SAVE THE GIRL
-        page.drawText(applicantName || "Unknown Name", { x: 600, y: 680, size: 56, color: textColor });
-        // Role is centered
-        page.drawText(postRole || "Intern", { x: 750, y: 530, size: 36, color: textColor });
-        // Start and End dates at the bottom
-        page.drawText(formatDt(startDate), { x: 650, y: 400, size: 32, color: textColor });
-        page.drawText(formatDt(endDate), { x: 1300, y: 400, size: 32, color: textColor });
+        // Middle Left Date 
+        page.drawText(generationDate, { x: 182, y: 870, size: 28, font: boldFont, color: textColor });
+
+        // Center the Name
+        const internNameText = applicantName || "Unknown Name";
+        const internNameWidth = boldFont.widthOfTextAtSize(internNameText, 56);
+        page.drawText(internNameText, { x: center - (internNameWidth / 2), y: 773, size: 56, font: boldFont, color: textColor });
+
+        // Center the Role
+        const internRoleText = postRole || "Intern";
+        const internRoleWidth = boldFont.widthOfTextAtSize(internRoleText, 36);
+        page.drawText(internRoleText, { x: center - (internRoleWidth / 2), y: 565, size: 36, font: boldFont, color: textColor });
+
+        // From and To Dates (Y synced to 477)
+        page.drawText(formatDt(startDate), { x: 727, y: 477, size: 32, font: boldFont, color: textColor });
+        page.drawText(formatDt(endDate), { x: 1296, y: 477, size: 32, font: boldFont, color: textColor });
         break;
 
       case 'DONOR':
-        // Date top left
-        page.drawText(formatDt(createdAt), { x: 250, y: 920, size: 28, color: textColor });
-        // Name centered
+        page.drawText(formatDt(submission.createdAt), { x: 250, y: 920, size: 28, color: textColor });
         page.drawText(applicantName || "Unknown Name", { x: 800, y: 720, size: 56, color: textColor });
-        // Donation type/items on the center line
         const donationItems = submission.itemsDonated ? "Donation in Kind" : "Financial Support";
         page.drawText(donationItems, { x: 650, y: 580, size: 32, color: textColor });
         break;
 
       case 'HOST':
-        // Date top left
-        page.drawText(formatDt(createdAt), { x: 200, y: 1020, size: 28, color: textColor });
-        // Name shifted right
+        page.drawText(formatDt(submission.createdAt), { x: 200, y: 1020, size: 28, color: textColor });
         page.drawText(applicantName || "Unknown Name", { x: 1000, y: 880, size: 48, color: textColor });
-        // Location shifted right
         page.drawText(submission.facilityLocation || "Our Center", { x: 800, y: 740, size: 36, color: textColor });
         break;
 
       case 'VISITOR':
-        // Name shifted right
         page.drawText(applicantName || "Unknown Name", { x: 1050, y: 900, size: 48, color: textColor });
-        // Location shifted right
         page.drawText(submission.facilityLocation || "Our Center", { x: 950, y: 760, size: 36, color: textColor });
         break;
     }
-    // 6. Save and convert to Buffer to fix the TypeScript error
+
+    // 5. Save and convert to Buffer
     const pdfBytes = await pdfDoc.save();
     const pdfBuffer = Buffer.from(pdfBytes);
 

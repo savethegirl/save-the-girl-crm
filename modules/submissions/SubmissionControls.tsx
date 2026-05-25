@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, XCircle, Clock, FileBadge, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, FileBadge, Loader2, Mail, HardDrive, Download, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
@@ -24,14 +23,23 @@ interface ControlProps {
   currentStatus: string;
   applicantName: string | null;
   certificateType: string;
+  applicantEmail?: string; // New prop for the fetched email
 }
 
-export default function SubmissionControls({ id, currentStatus, applicantName, certificateType }: ControlProps) {
+export default function SubmissionControls({ id, currentStatus, applicantName, certificateType, applicantEmail }: ControlProps) {
   const [status, setStatus] = useState(currentStatus);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const router = useRouter();
+
+  // --- Modal Generation State ---
+  const [saveLocally, setSaveLocally] = useState(true);
+  const [saveToDrive, setSaveToDrive] = useState(false);
+  const [sendEmail, setSendEmail] = useState(false);
+  const [showCcInput, setShowCcInput] = useState(false);
+  const [ccEmail, setCcEmail] = useState("");
+  const [includeQuantity, setIncludeQuantity] = useState(true);
 
   const updateStatus = async (newStatus: "APPROVED" | "REJECTED" | "PENDING") => {
     setIsUpdating(true);
@@ -62,13 +70,23 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
 
   const handleGenerateCertificate = async () => {
     setIsGenerating(true);
-    const toastId = toast.loading("Stamping PDF...");
+    const toastId = toast.loading("Processing Certificate...");
 
     try {
       const response = await fetch('/api/certificates', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ 
+            id,
+            options: {
+                saveLocally,
+                saveToDrive,
+                sendEmail,
+                targetEmail: sendEmail ? applicantEmail : null, // Backend will use this
+                ccEmail: showCcInput ? ccEmail : null,
+                includeQuantity
+            }
+        }),
       });
 
       if (!response.ok) {
@@ -76,22 +94,20 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
         throw new Error(errorData.error || "Failed to generate certificate.");
       }
 
-      const blob = await response.blob();
-      
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      
-      const cleanName = applicantName ? applicantName.replace(/\s+/g, '_') : 'Applicant';
-      a.download = `${cleanName}_${certificateType}_Certificate.pdf`;
-      
-      document.body.appendChild(a);
-      a.click();
-      
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      if (saveLocally) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          const cleanName = applicantName ? applicantName.replace(/\s+/g, '_') : 'Applicant';
+          a.download = `${cleanName}_${certificateType}_Certificate.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+      }
 
-      toast.success("Certificate downloaded successfully!", { id: toastId });
+      toast.success("Generation complete!", { id: toastId });
       setIsModalOpen(false); 
     } catch (error: any) {
       console.error("PDF Error:", error);
@@ -132,7 +148,6 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
         </button>
       </div>
 
-      {/* Certificate Modal - Only show button if Approved */}
       {status === 'APPROVED' && (
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogTrigger asChild>
@@ -141,30 +156,89 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
               Generate Certificate
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Generate Official Certificate</DialogTitle>
+              <DialogTitle>Configure Generation</DialogTitle>
               <DialogDescription>
-                This will create a signed PDF certificate.
+                Select how you want to process and distribute this certificate.
               </DialogDescription>
             </DialogHeader>
             
-            <div className="py-4 space-y-4">
-               <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg text-sm text-blue-700 italic">
-                 Note: The PDF will download locally to your machine for review. Automated emailing will be added in the next phase.
-               </div>
+            <div className="py-4 space-y-5">
+              
+              {/* Item Settings (Donor, Host, Visitor) */}
+              {['DONOR', 'HOST', 'VISITOR'].includes(certificateType) && (
+                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg space-y-2">
+                      <span className="text-xs font-bold text-amber-800 uppercase tracking-widest block">Item Settings</span>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input type="checkbox" checked={includeQuantity} onChange={(e) => setIncludeQuantity(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600" />
+                        <span className="text-sm font-medium text-slate-700">List item quantities alongside items</span>
+                      </label>
+                  </div>
+              )}
+
+              {/* Distribution Settings */}
+              <div className="space-y-3">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">Distribution</span>
+                  
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <input type="checkbox" checked={saveLocally} onChange={(e) => setSaveLocally(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600" />
+                    <Download className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                    <span className="text-sm font-medium text-slate-700">Download to local PC</span>
+                  </label>
+
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <input type="checkbox" checked={saveToDrive} onChange={(e) => setSaveToDrive(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600" />
+                    <HardDrive className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                    <span className="text-sm font-medium text-slate-700">Save to NGO Google Drive</span>
+                  </label>
+
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                        <input 
+                          type="checkbox" 
+                          checked={sendEmail} 
+                          onChange={(e) => setSendEmail(e.target.checked)} 
+                          disabled={!applicantEmail}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600 disabled:opacity-50" 
+                        />
+                        <Mail className={`h-4 w-4 transition-colors ${applicantEmail ? 'text-slate-400 group-hover:text-blue-600' : 'text-slate-300'}`} />
+                        <span className={`text-sm font-medium ${applicantEmail ? 'text-slate-700' : 'text-slate-400'}`}>
+                          Email applicant {applicantEmail ? <span className="font-normal text-slate-500">({applicantEmail})</span> : <span className="text-red-400 text-xs italic ml-1">No email on file</span>}
+                        </span>
+                    </label>
+                    
+                    {sendEmail && applicantEmail && (
+                        <div className="pl-7 pt-1 space-y-2 animate-in fade-in slide-in-from-top-1">
+                            {!showCcInput ? (
+                                <button onClick={() => setShowCcInput(true)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                                    <Plus className="h-3 w-3" /> Add CC / Another Email
+                                </button>
+                            ) : (
+                                <input 
+                                    type="email" 
+                                    placeholder="cc@example.com" 
+                                    value={ccEmail}
+                                    onChange={(e) => setCcEmail(e.target.value)}
+                                    className="flex h-8 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-600"
+                                />
+                            )}
+                        </div>
+                    )}
+                  </div>
+              </div>
             </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isGenerating}>Cancel</Button>
-              <Button onClick={handleGenerateCertificate} disabled={isGenerating} className="bg-blue-600 min-w-35">
+              <Button onClick={handleGenerateCertificate} disabled={isGenerating || (!saveLocally && !saveToDrive && !sendEmail)} className="bg-blue-600 min-w-[140px]">
                 {isGenerating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Generating
+                    Processing
                   </>
                 ) : (
-                  "Confirm & Generate"
+                  "Confirm & Process"
                 )}
               </Button>
             </DialogFooter>
