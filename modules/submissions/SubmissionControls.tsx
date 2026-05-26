@@ -109,6 +109,7 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
 
       toast.success("Generation complete!", { id: toastId });
       setIsModalOpen(false); 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error("PDF Error:", error);
       toast.error(error.message || "Network error.", { id: toastId });
@@ -156,7 +157,7 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
               Generate Certificate
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-106.25">
             <DialogHeader>
               <DialogTitle>Configure Generation</DialogTitle>
               <DialogDescription>
@@ -231,7 +232,7 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isGenerating}>Cancel</Button>
-              <Button onClick={handleGenerateCertificate} disabled={isGenerating || (!saveLocally && !saveToDrive && !sendEmail)} className="bg-blue-600 min-w-[140px]">
+              <Button onClick={handleGenerateCertificate} disabled={isGenerating || (!saveLocally && !saveToDrive && !sendEmail)} className="bg-blue-600 min-w-35">
                 {isGenerating ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />

@@ -159,7 +159,10 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
                 <DetailItem icon={Building} label="University Name" value={submission.universityName} />
                 <DetailItem icon={CheckCircle} label="Univ. Requirement" value={submission.isUniversityRequirement} />
                 <DetailItem icon={MapPin} label="Center Visited" value={submission.centerVisited} />
-                <DetailItem icon={Map} label="Facility Location" value={submission.facilityLocation} />
+                
+                {/* Dynamic Label for Address / Facility Location */}
+                <DetailItem icon={Map} label={submission.certificateType === 'VISITOR' ? 'Address' : 'Facility Location'} value={submission.facilityLocation} />
+                
                 <DetailItem icon={UserCircle} label="Attendant Name" value={submission.attendantName} />
                 <DetailItem icon={Users} label="Company Coordinator" value={submission.companyCoordinator} />
                 <DetailItem icon={Baby} label="No. of Children" value={submission.noOfChildren} />

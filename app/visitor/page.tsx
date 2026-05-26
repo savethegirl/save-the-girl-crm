@@ -6,7 +6,7 @@ import { useForm, SubmitHandler } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { X, Plus, Loader2 } from "lucide-react";
 
-const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeholder: string, tags: string[], setTags: (tags: string[]) => void }) => {
+const TagInput = ({ label, placeholder, tags, setTags, type = "text" }: { label: string, placeholder: string, tags: string[], setTags: (tags: string[]) => void, type?: string }) => {
   const [inputValue, setInputValue] = useState("");
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -38,7 +38,7 @@ const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeh
           ))}
         </div>
         <input
-          type="text"
+          type={type}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -136,10 +136,11 @@ type VisitorFormInputs = {
 
 export default function VisitorCertificatePage() {
   const [phones, setPhones] = useState<string[]>([]);
+  const [emails, setEmails] = useState<string[]>([]); // NEW: Emails state
   const [donatedItems, setDonatedItems] = useState<DonatedItem[]>([]);
   const [visitSure, setVisitSure] = useState(true);
 
-  // --- NEW: Dynamic Centers State ---
+  // --- Dynamic Centers State ---
   const [availableCenters, setAvailableCenters] = useState<string[]>([]);
   const [isLoadingCenters, setIsLoadingCenters] = useState(true);
 
@@ -160,7 +161,7 @@ export default function VisitorCertificatePage() {
   const currentPurpose = watch("purpose");
   const currentHelpedFinancially = watch("helpedFinancially");
 
-  // --- NEW: Fetch Centers on Mount ---
+  // --- Fetch Centers on Mount ---
   useEffect(() => {
     const fetchCenters = async () => {
       try {
@@ -194,6 +195,7 @@ export default function VisitorCertificatePage() {
       centerVisited: data.centerVisited,
       attendantName: data.attendantName,
       phones: phones,
+      emails: emails, // NEW: Include emails in payload
       facilityLocation: data.address, 
       purposeOfVisit: data.purpose === 'Other' ? data.otherPurpose : data.purpose,
       itemsDonated: donatedItems.length > 0 ? donatedItems : null,
@@ -221,6 +223,7 @@ export default function VisitorCertificatePage() {
         toast.success("Visitor data saved successfully!", { id: toastId });
         reset();
         setPhones([]);
+        setEmails([]); // NEW: Reset emails
         setDonatedItems([]);
         setVisitSure(true);
       } else {
@@ -262,7 +265,7 @@ export default function VisitorCertificatePage() {
             />
           </div>
           
-          {/* --- NEW: Dynamic Dropdown UI --- */}
+          {/* Dynamic Dropdown UI */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Center Visited<span className="text-red-500 ml-1">*</span></label>
             <div className="relative">
@@ -297,17 +300,19 @@ export default function VisitorCertificatePage() {
         <div className="grid grid-cols-1 gap-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <TagInput label="Phone Numbers *" placeholder="Enter phone and press Enter" tags={phones} setTags={setPhones} />
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Address<span className="text-red-500 ml-1">*</span></label>
-              <input 
-                {...register("address", { required: true })} 
-                type="text" 
-                className={`w-full p-2.5 border rounded-md outline-none focus:ring-2 focus:ring-blue-500 ${errors.address ? 'border-red-500' : 'border-slate-300'}`} 
-                placeholder="Enter Address" 
-              />
-            </div>
+            <TagInput label="Email Addresses (Optional)" placeholder="Enter email and press Enter" tags={emails} setTags={setEmails} type="email" />
           </div>
           
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700">Address<span className="text-red-500 ml-1">*</span></label>
+            <input 
+              {...register("address", { required: true })} 
+              type="text" 
+              className={`w-full p-2.5 border rounded-md outline-none focus:ring-2 focus:ring-blue-500 ${errors.address ? 'border-red-500' : 'border-slate-300'}`} 
+              placeholder="Enter Address" 
+            />
+          </div>
+
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
             <label className="block text-sm font-medium text-slate-700 mb-4">Social Media Links (Optional)</label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -425,7 +430,7 @@ export default function VisitorCertificatePage() {
         <div className="pt-4 flex justify-end gap-4">
           <button 
             type="button" 
-            onClick={() => { reset(); setPhones([]); setDonatedItems([]); setVisitSure(true); }}
+            onClick={() => { reset(); setPhones([]); setEmails([]); setDonatedItems([]); setVisitSure(true); }}
             className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
           >
             Clear
