@@ -256,7 +256,7 @@ export async function POST(req: Request) {
     }
 
     // --- EXECUTE EMAIL DELIVERY ---
-    if (submission.emails && submission.emails.length > 0) {
+    if (options?.sendEmail && options?.targetEmail) {
         try {
             const transporter = nodemailer.createTransport({
                 service: 'gmail',
@@ -266,13 +266,10 @@ export async function POST(req: Request) {
                 },
             });
 
-            // Your schema defines emails as string[], so we directly join them
-            const recipientList = submission.emails.join(', ');
-
-            const mailOptions = {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const mailOptions: any = {
                 from: process.env.EMAIL_USER,
-                to: recipientList,
-                cc: 'edgecutionist@gmail.com',
+                to: options.targetEmail, // Uses the resolved email from frontend
                 subject: 'Your Certificate from Save The Girl',
                 text: `Dear ${applicantName},\n\nThank you for your valuable contribution to Save The Girl. Please find your official certificate attached to this email.\n\nBest regards,\nThe Save The Girl Team`,
                 attachments: [
@@ -284,8 +281,13 @@ export async function POST(req: Request) {
                 ]
             };
 
+            // Dynamically attach the CC email if the user typed one in the frontend
+            if (options.ccEmail) {
+                mailOptions.cc = options.ccEmail;
+            }
+
             await transporter.sendMail(mailOptions);
-            console.log(`Successfully emailed certificate to ${recipientList}`);
+            console.log(`Successfully emailed certificate to ${options.targetEmail}`);
         } catch (emailError) {
             console.error("Email Delivery Failed:", emailError);
         }

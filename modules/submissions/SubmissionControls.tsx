@@ -6,7 +6,7 @@ import { CheckCircle2, XCircle, Clock, FileBadge, Loader2, Mail, HardDrive, Down
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 
-// Shadcn UI
+// Shadcn UI (Assuming these are correctly configured in your project)
 import {
   Dialog,
   DialogContent,
@@ -23,7 +23,7 @@ interface ControlProps {
   currentStatus: string;
   applicantName: string | null;
   certificateType: string;
-  applicantEmail?: string; // New prop for the fetched email
+  applicantEmail?: string;
 }
 
 export default function SubmissionControls({ id, currentStatus, applicantName, certificateType, applicantEmail }: ControlProps) {
@@ -35,11 +35,15 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
 
   // --- Modal Generation State ---
   const [saveLocally, setSaveLocally] = useState(true);
-  const [saveToDrive, setSaveToDrive] = useState(false);
-  const [sendEmail, setSendEmail] = useState(false);
+  // Default checked as requested
+  const [saveToDrive, setSaveToDrive] = useState(true); 
+  const [sendEmail, setSendEmail] = useState(true);
+  const [includeQuantity, setIncludeQuantity] = useState(true);
+
+  // Email Handling State
+  const [manualEmail, setManualEmail] = useState("");
   const [showCcInput, setShowCcInput] = useState(false);
   const [ccEmail, setCcEmail] = useState("");
-  const [includeQuantity, setIncludeQuantity] = useState(true);
 
   const updateStatus = async (newStatus: "APPROVED" | "REJECTED" | "PENDING") => {
     setIsUpdating(true);
@@ -69,6 +73,15 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
   };
 
   const handleGenerateCertificate = async () => {
+    // Determine the primary email to send to
+    const targetEmail = sendEmail ? (applicantEmail || manualEmail) : null;
+    
+    // Basic validation if they check the box but leave the manual input empty
+    if (sendEmail && !targetEmail) {
+        toast.error("Please provide an email address to send to.");
+        return;
+    }
+
     setIsGenerating(true);
     const toastId = toast.loading("Processing Certificate...");
 
@@ -82,8 +95,8 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
                 saveLocally,
                 saveToDrive,
                 sendEmail,
-                targetEmail: sendEmail ? applicantEmail : null, // Backend will use this
-                ccEmail: showCcInput ? ccEmail : null,
+                targetEmail: targetEmail, // Pass the resolved email back
+                ccEmail: showCcInput && ccEmail ? ccEmail : null,
                 includeQuantity
             }
         }),
@@ -167,7 +180,7 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
             
             <div className="py-4 space-y-5">
               
-              {/* Item Settings (Donor, Host, Visitor) */}
+              {/* Item Settings */}
               {['DONOR', 'HOST', 'VISITOR'].includes(certificateType) && (
                   <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg space-y-2">
                       <span className="text-xs font-bold text-amber-800 uppercase tracking-widest block">Item Settings</span>
@@ -200,25 +213,45 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
                           type="checkbox" 
                           checked={sendEmail} 
                           onChange={(e) => setSendEmail(e.target.checked)} 
-                          disabled={!applicantEmail}
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600 disabled:opacity-50" 
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600" 
                         />
-                        <Mail className={`h-4 w-4 transition-colors ${applicantEmail ? 'text-slate-400 group-hover:text-blue-600' : 'text-slate-300'}`} />
-                        <span className={`text-sm font-medium ${applicantEmail ? 'text-slate-700' : 'text-slate-400'}`}>
-                          Email applicant {applicantEmail ? <span className="font-normal text-slate-500">({applicantEmail})</span> : <span className="text-red-400 text-xs italic ml-1">No email on file</span>}
+                        <Mail className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                        <span className="text-sm font-medium text-slate-700 flex-1">
+                          Email applicant
                         </span>
                     </label>
                     
-                    {sendEmail && applicantEmail && (
-                        <div className="pl-7 pt-1 space-y-2 animate-in fade-in slide-in-from-top-1">
+                    {sendEmail && (
+                        <div className="pl-7 pt-1 space-y-3 animate-in fade-in slide-in-from-top-1">
+                            
+                            {/* Primary Email Handling */}
+                            {applicantEmail ? (
+                                <div className="text-sm text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
+                                    Sending to: <span className="font-medium text-slate-900">{applicantEmail}</span>
+                                </div>
+                            ) : (
+                                <div className="space-y-1">
+                                    <span className="text-xs font-semibold text-red-500 italic">No email on file. Enter manually:</span>
+                                    <input 
+                                        type="email" 
+                                        placeholder="applicant@email.com" 
+                                        value={manualEmail}
+                                        onChange={(e) => setManualEmail(e.target.value)}
+                                        className="flex h-8 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-600"
+                                        required
+                                    />
+                                </div>
+                            )}
+
+                            {/* CC Email Handling */}
                             {!showCcInput ? (
-                                <button onClick={() => setShowCcInput(true)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                                <button onClick={() => setShowCcInput(true)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors mt-2">
                                     <Plus className="h-3 w-3" /> Add CC / Another Email
                                 </button>
                             ) : (
                                 <input 
                                     type="email" 
-                                    placeholder="cc@example.com" 
+                                    placeholder="CC: example@email.com" 
                                     value={ccEmail}
                                     onChange={(e) => setCcEmail(e.target.value)}
                                     className="flex h-8 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-600"
