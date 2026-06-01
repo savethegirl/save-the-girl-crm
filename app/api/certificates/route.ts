@@ -266,12 +266,40 @@ export async function POST(req: Request) {
                 },
             });
 
+            // Format raw typeKey (e.g., 'VOLUNTEER' -> 'Volunteer')
+            const displayActivity = submission.certificateType 
+                ? submission.certificateType.charAt(0).toUpperCase() + submission.certificateType.slice(1).toLowerCase() 
+                : "Contribution";
+
+            const emailHtml = `
+              <div style="font-family: 'Comic Sans MS', 'Comic Sans', cursive; font-size: 14px; line-height: 1.6; color: #105691;">
+                <p>Dear <strong>${applicantName || 'Recipient'}</strong>,</p>
+                
+                <p>On behalf of the entire team at <strong>Save The Girl</strong>, we want to express our deepest gratitude for your recent association with us.</p>
+                
+                <p>Every hand that helps and every heart that gives brings us closer to a safer, brighter future for the girls we support. We are incredibly grateful for your time, generosity, and dedication.</p>
+                
+                <p>In recognition of your support, we are pleased to share your official certificate for your <strong>${displayActivity}</strong>.</p>
+                
+                <p><strong>Want to multiply your impact?</strong> Please consider sharing your certificate on your social media channels and tagging <strong>@ngosavethegirl</strong>. Inspiring others to join our cause is one of the greatest gifts you can give us!</p>
+                
+                <p>Thank you once again for being a champion for change.</p>
+                
+                <p style="margin-bottom: 20px;">Warm regards,</p>
+                
+                <p style="margin-bottom: 0;"><strong>Save The Girl Team</strong></p>
+                <p style="margin: 0;">+91-9990507028</p>
+                <p style="margin: 0;"><a href="https://www.savegirl.org" style="color: #105691; text-decoration: underline;">www.savegirl.org</a></p>
+                <p style="font-style: italic; font-size: 12px; margin-top: 12px; color: #555555;">if you want a better future then give a better present to a child</p>
+              </div>
+            `;
+
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const mailOptions: any = {
                 from: process.env.EMAIL_USER,
-                to: options.targetEmail, // Uses the resolved email from frontend
-                subject: 'Your Certificate from Save The Girl',
-                text: `Dear ${applicantName},\n\nThank you for your valuable contribution to Save The Girl. Please find your official certificate attached to this email.\n\nBest regards,\nThe Save The Girl Team`,
+                to: options.targetEmail, 
+                subject: `Thank you from Save The Girl! 🌸 Your Certificate of ${displayActivity} Inside`,
+                html: emailHtml,
                 attachments: [
                     {
                         filename: finalFileName,
