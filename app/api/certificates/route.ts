@@ -158,49 +158,86 @@ export async function POST(req: Request) {
         break;
 
       case 'VISITOR':
-        page.drawText(generationDate, { x: 291, y: 1108, size: 28, font: boldFont, color: textColor });
-        
         const visName = applicantName || "Unknown Name";
-        const nameLineCenter = 1165 + ((rightMarginX - 1165) / 2);
-        drawScaledCenteredText(page, visName, boldFont, 48, 650, nameLineCenter, 935, textColor);
+        
+        const visNameLineStartX = 1080; 
+        const visNameLineEndX = 1750;
+        const visNameMaxWidth = visNameLineEndX - visNameLineStartX;
+        const visNameLineCenter = visNameLineStartX + (visNameMaxWidth / 2);
+        
+        drawScaledCenteredText(page, visName, boldFont, 48, visNameMaxWidth, visNameLineCenter, 910, textColor);
 
         const visitDateStr = formatDt(submission.visitDate);
         const facilityStr = submission.centerVisited || "Our Center";
-        const centerAndDate = `${facilityStr.toUpperCase()} ON ${visitDateStr}`;
-        const centerDateWidth = boldFont.widthOfTextAtSize(centerAndDate, 38);
-        const facilityLineCenter = 468 + ((rightMarginX - 468) / 2);
-        page.drawText(centerAndDate, { x: facilityLineCenter - (centerDateWidth / 2), y: 830, size: 38, font: boldFont, color: textColor });
-
-        let donationStr = "N/A";
-        const items = submission.itemsDonated as { item: string, quantity: number }[] | null;
+        const centerAndDate = `${facilityStr.toUpperCase()}, ${visitDateStr}`;
         
-        if (items && items.length > 0) {
-            donationStr = options?.includeQuantity 
-                ? items.map(i => `${i.item} x${i.quantity}`).join(', ')
-                : items.map(i => i.item).join(', ');
+        const facilityLineStartX = 400;
+        const facilityLineEndX = 1550;
+        const facilityMaxWidth = facilityLineEndX - facilityLineStartX;
+        const facilityLineCenter = facilityLineStartX + (facilityMaxWidth / 2);
+        
+        drawScaledCenteredText(page, centerAndDate, boldFont, 38, facilityMaxWidth, facilityLineCenter, 820, textColor);
+
+        let visDonationStr = "N/A";
+        const visItems = submission.itemsDonated as { item: string, quantity: number }[] | null;
+        
+        if (visItems && visItems.length > 0) {
+            visDonationStr = options?.includeQuantity 
+                ? visItems.map(i => `${i.item} x${i.quantity}`).join(', ')
+                : visItems.map(i => i.item).join(', ');
         } else if (submission.helpedFinancially) {
-            donationStr = `Financial Support (Rs. ${submission.financialAmount})`;
+            visDonationStr = `Financial Support (Rs. ${submission.financialAmount})`;
         }
         
-        const donMaxWidth = 750; 
-        const donLineCenter = 1133 + ((rightMarginX - 1133) / 2);
-        const donationLines = wrapText(donationStr, donMaxWidth, boldFont, 38);
+        const visDonLineStartX = 1100; 
+        const visDonLineEndX = 1780; 
+        const visDonMaxWidth = visDonLineEndX - visDonLineStartX; 
+        const visDonLineCenterItems = visDonLineStartX + (visDonMaxWidth / 2); 
         
-        let startY = 616;
-        donationLines.forEach((line) => {
-            const lineWidth = boldFont.widthOfTextAtSize(line, 38);
-            page.drawText(line, { x: donLineCenter - (lineWidth / 2), y: startY, size: 38, font: boldFont, color: textColor });
-            startY -= 45; 
-        });
+        const visBaselineY = 610; 
+        
+        // --- DYNAMIC SIZING GATE (DO NOT TOUCH THIS MATH) ---
+        const visMaxItemFontSize = 38;
+        const visWrapItemFontSize = 28;
+        const visWidthAtMaxSize = boldFont.widthOfTextAtSize(visDonationStr, visMaxItemFontSize);
+        
+        if (visWidthAtMaxSize <= visDonMaxWidth) {
+            page.drawText(visDonationStr, {
+                x: visDonLineCenterItems - (visWidthAtMaxSize / 2),
+                y: visBaselineY,
+                size: visMaxItemFontSize,
+                font: boldFont,
+                color: textColor
+            });
+        } else {
+            const visDonationLines = wrapText(visDonationStr, visDonMaxWidth, boldFont, visWrapItemFontSize);
+            const visLineHeight = 35; 
+            let currentY = visBaselineY + ((visDonationLines.length - 1) * visLineHeight);
+            
+            visDonationLines.forEach((line) => {
+                const lineWidth = boldFont.widthOfTextAtSize(line, visWrapItemFontSize);
+                page.drawText(line, { 
+                    x: visDonLineCenterItems - (lineWidth / 2), 
+                    y: currentY, 
+                    size: visWrapItemFontSize, 
+                    font: boldFont, 
+                    color: textColor 
+                });
+                currentY -= visLineHeight; 
+            });
+        }
         break;
+      
+        case 'DONOR':
+        // 1. DATE: 
+        const donorDateStr = formatDt(submission.createdAt);
+        drawScaledCenteredText(page, donorDateStr, boldFont, 28, 260, 370, 1000, textColor);
 
-      case 'DONOR':
-        page.drawText(formatDt(submission.createdAt), { x: 250, y: 920, size: 28, font: boldFont, color: textColor });
-
+        // 2. NAME: 
         const donorNameText = applicantName || "Unknown Name";
-        const donorNameLineCenter = 496 + ((rightMarginX - 496) / 2);
-        drawScaledCenteredText(page, donorNameText, boldFont, 64, 900, donorNameLineCenter, 769, textColor);
+        drawScaledCenteredText(page, donorNameText, boldFont, 64, 1200, 1075, 755, textColor);
 
+        // 3. ITEMS: (Your pixels + New Dynamic Sizing Logic)
         let donorDonationStr = "N/A";
         const donorItems = submission.itemsDonated as { item: string, quantity: number }[] | null;
         
@@ -212,31 +249,66 @@ export async function POST(req: Request) {
             donorDonationStr = `Financial Support (Rs. ${submission.financialAmount})`;
         }
         
-        const donorDonMaxWidth = rightMarginX - 658; 
-        const donorDonLineCenter = 658 + (donorDonMaxWidth / 2);
-        const donorDonationLines = wrapText(donorDonationStr, donorDonMaxWidth - 40, boldFont, 38);
+        // exact line coordinates
+        const donorDonLineStartX = 680; 
+        const donorDonLineEndX = 1700; 
+        const donorDonMaxWidth = donorDonLineEndX - donorDonLineStartX; 
+        const donorDonLineCenterItems = donorDonLineStartX + (donorDonMaxWidth / 2); 
+        const baselineY = 630; 
         
-        let donorStartY = 637;
-        donorDonationLines.forEach((line) => {
-            const lineWidth = boldFont.widthOfTextAtSize(line, 38);
-            page.drawText(line, { x: donorDonLineCenter - (lineWidth / 2), y: donorStartY, size: 38, font: boldFont, color: textColor });
-            donorStartY -= 45; 
-        });
+        // --- THE DYNAMIC SIZING GATE ---
+        const maxItemFontSize = 38; // The big, bold target size for short lists
+        const wrapItemFontSize = 28; //  fallback size for stacking long lists
+        
+        // Measure it at the big font size first
+        const widthAtMaxSize = boldFont.widthOfTextAtSize(donorDonationStr, maxItemFontSize);
+        
+        if (widthAtMaxSize <= donorDonMaxWidth) {
+            // SCENARIO A: draw it big and centered on a single line.
+            page.drawText(donorDonationStr, {
+                x: donorDonLineCenterItems - (widthAtMaxSize / 2),
+                y: baselineY,
+                size: maxItemFontSize,
+                font: boldFont,
+                color: textColor
+            });
+        } else {
+            // SCENARIO B: wrapping logic to stack it cleanly.
+            const donorDonationLines = wrapText(donorDonationStr, donorDonMaxWidth, boldFont, wrapItemFontSize);
+            const lineHeight = 35; 
+            let currentY = baselineY + ((donorDonationLines.length - 1) * lineHeight);
+            
+            donorDonationLines.forEach((line) => {
+                const lineWidth = boldFont.widthOfTextAtSize(line, wrapItemFontSize);
+                page.drawText(line, { 
+                    x: donorDonLineCenterItems - (lineWidth / 2), 
+                    y: currentY, 
+                    size: wrapItemFontSize, 
+                    font: boldFont, 
+                    color: textColor 
+                });
+                currentY -= lineHeight; 
+            });
+        }
         break;
-
+        
       case 'HOST':
+        // 1. DATE: 
         const hostDate = submission.visitDate || submission.startDate || submission.createdAt;
-        page.drawText(formatDt(hostDate), { x: 158, y: 1092, size: 34, font: boldFont, color: textColor });
+        page.drawText(formatDt(hostDate), { x: 158, y: 1050, size: 34, font: boldFont, color: textColor });
 
+        // 2. NAME: 
         const hostName = applicantName || "Unknown Name";
         const hostNameLineCenter = 1064 + ((rightMarginX - 1064) / 2);
-        drawScaledCenteredText(page, hostName, boldFont, 48, 750, hostNameLineCenter, 898, textColor);
+        drawScaledCenteredText(page, hostName, boldFont, 48, 750, hostNameLineCenter, 872, textColor);
 
+        // 3. FACILITY 
         const hostFacilityStr = (submission.facilityLocation || "Our Center").toUpperCase();
         const hostFacWidth = boldFont.widthOfTextAtSize(hostFacilityStr, 38);
         const hostFacLineCenter = 791 + ((rightMarginX - 791) / 2);
-        page.drawText(hostFacilityStr, { x: hostFacLineCenter - (hostFacWidth / 2), y: 786, size: 38, font: boldFont, color: textColor });
+        page.drawText(hostFacilityStr, { x: hostFacLineCenter - (hostFacWidth / 2), y: 760, size: 38, font: boldFont, color: textColor });
 
+        // 4. ITEMS
         let hostDonationStr = "N/A";
         const hostItems = submission.itemsDonated as { item: string, quantity: number }[] | null;
         
@@ -248,16 +320,45 @@ export async function POST(req: Request) {
             hostDonationStr = `Financial Support (Rs. ${submission.financialAmount})`;
         }
         
-        const hostDonMaxWidth = rightMarginX - 1129; 
-        const hostDonLineCenter = 1129 + (hostDonMaxWidth / 2);
-        const hostDonationLines = wrapText(hostDonationStr, hostDonMaxWidth - 20, boldFont, 38);
+        const hostDonLineStartX = 1129; 
+        const hostDonLineEndX = 1800; // a clean 50px margin on the right
+        const hostDonMaxWidth = hostDonLineEndX - hostDonLineStartX; 
+        const hostDonLineCenterItems = hostDonLineStartX + (hostDonMaxWidth / 2); 
+        const hostBaselineY = 555; 
         
-        let hostStartY = 580;
-        hostDonationLines.forEach((line) => {
-            const lineWidth = boldFont.widthOfTextAtSize(line, 38);
-            page.drawText(line, { x: hostDonLineCenter - (lineWidth / 2), y: hostStartY, size: 38, font: boldFont, color: textColor });
-            hostStartY -= 45; 
-        });
+        // --- DYNAMIC SIZING GATE ---
+        const hostMaxItemFontSize = 38;
+        const hostWrapItemFontSize = 28;
+        
+        const hostWidthAtMaxSize = boldFont.widthOfTextAtSize(hostDonationStr, hostMaxItemFontSize);
+        
+        if (hostWidthAtMaxSize <= hostDonMaxWidth) {
+            // Short list
+            page.drawText(hostDonationStr, {
+                x: hostDonLineCenterItems - (hostWidthAtMaxSize / 2),
+                y: hostBaselineY,
+                size: hostMaxItemFontSize,
+                font: boldFont,
+                color: textColor
+            });
+        } else {
+            // Long list
+            const hostDonationLines = wrapText(hostDonationStr, hostDonMaxWidth, boldFont, hostWrapItemFontSize);
+            const hostLineHeight = 35; 
+            let currentY = hostBaselineY + ((hostDonationLines.length - 1) * hostLineHeight);
+            
+            hostDonationLines.forEach((line) => {
+                const lineWidth = boldFont.widthOfTextAtSize(line, hostWrapItemFontSize);
+                page.drawText(line, { 
+                    x: hostDonLineCenterItems - (lineWidth / 2), 
+                    y: currentY, 
+                    size: hostWrapItemFontSize, 
+                    font: boldFont, 
+                    color: textColor 
+                });
+                currentY -= hostLineHeight; 
+            });
+        }
         break;
     }
 
