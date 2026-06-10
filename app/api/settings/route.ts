@@ -35,3 +35,15 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
+
+export async function GET() {
+  try {
+    const settings = await prisma.settings.findFirst();
+    const centers = settings?.centers || [];
+    
+    return NextResponse.json({ success: true, data: centers });
+  } catch (error: any) {
+    console.error("Fetch Settings Error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
