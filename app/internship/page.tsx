@@ -1,8 +1,10 @@
 /* eslint-disable react-hooks/incompatible-library */
 'use client';
 
+import { useState } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import toast from 'react-hot-toast';
+import SubmissionControls from "@/modules/submissions/SubmissionControls";
 
 type InternFormInputs = {
   applicantName: string;
@@ -24,6 +26,9 @@ type InternFormInputs = {
 };
 
 export default function InternshipCertificatePage() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [savedRecord, setSavedRecord] = useState<any>(null);
+  
   const { 
     register, 
     handleSubmit, 
@@ -32,7 +37,7 @@ export default function InternshipCertificatePage() {
     formState: { isSubmitting, errors } 
   } = useForm<InternFormInputs>({
     defaultValues: {
-      donationType: 'Non Financial'
+      donationType: 'No' // Changed default as requested
     }
   });
 
@@ -40,6 +45,7 @@ export default function InternshipCertificatePage() {
 
   const onSubmit: SubmitHandler<InternFormInputs> = async (data) => {
     const toastId = toast.loading("Saving intern data...");
+    setSavedRecord(null);
 
     try {
       const response = await fetch('/api/submissions', {
@@ -51,12 +57,14 @@ export default function InternshipCertificatePage() {
         }),
       });
 
+      const json = await response.json();
+
       if (response.ok) {
         toast.success("Intern data saved successfully!", { id: toastId });
+        setSavedRecord(json.data); // Save the response so the controls appear
         reset(); 
       } else {
-        const errorData = await response.json();
-        toast.error(`Failed to save: ${errorData.error || 'Unknown error'}`, { id: toastId });
+        toast.error(`Failed to save: ${json.error || 'Unknown error'}`, { id: toastId });
       }
     } catch (error) {
       console.error("Submission error:", error);
@@ -70,6 +78,20 @@ export default function InternshipCertificatePage() {
         <h2 className="text-2xl font-bold text-slate-900">Internship Certificate Form</h2>
         <p className="text-sm text-slate-500">Fill in the student details to generate their completion certificate.</p>
       </div>
+
+      {savedRecord && (
+        <SubmissionControls 
+          id={savedRecord.id}
+          currentStatus={savedRecord.status}
+          applicantName={savedRecord.applicantName}
+          certificateType={savedRecord.certificateType}
+          applicantEmail={savedRecord.emails?.[0]} 
+          hideStatusToggle={true} 
+          hideTriggerButton={true}   
+          autoOpenModal={true}        
+          onCloseModal={() => setSavedRecord(null)} 
+        />
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-8 rounded-lg border border-slate-200 shadow-sm space-y-6">
         
@@ -174,19 +196,20 @@ export default function InternshipCertificatePage() {
         {/* Additional Data */}
         <div className="grid grid-cols-1 gap-6">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">University Name<span className="text-red-500 ml-1">*</span></label>
+            <label className="text-sm font-medium text-slate-700">University Name</label>
             <input 
-              {...register("universityName", { required: true })} 
+              {...register("universityName")} 
               type="text" 
-              className={`w-full p-2.5 border rounded-md outline-none ${errors.universityName ? 'border-red-500' : 'border-slate-300'}`} 
+              className={`w-full p-2.5 border rounded-md outline-none border-slate-300`} 
               placeholder="Enter university name" 
             />
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Donation Type<span className="text-red-500 ml-1">*</span></label>
-              <select {...register("donationType", { required: true })} className="w-full p-2.5 border border-slate-300 rounded-md outline-none">
+              <label className="text-sm font-medium text-slate-700">Donation Type</label>
+              <select {...register("donationType")} className="w-full p-2.5 border border-slate-300 rounded-md outline-none">
+                <option value="No">None</option>
                 <option value="Non Financial">Non Financial</option>
                 <option value="Financial">Financial</option>
                 <option value="Both">Both</option>
@@ -205,7 +228,6 @@ export default function InternshipCertificatePage() {
             </div>
           </div>
 
-          {/* Conditional Rendering for Financial Amount */}
           {(currentDonationType === 'Financial' || currentDonationType === 'Both') && (
             <div className="space-y-2 p-4 bg-blue-50 border border-blue-100 rounded-md">
               <label className="text-sm font-medium text-blue-900">Financial Amount (₹)<span className="text-red-500 ml-1">*</span></label>

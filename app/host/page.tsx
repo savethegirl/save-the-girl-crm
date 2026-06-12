@@ -1,15 +1,21 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/incompatible-library */
 "use client";
 
-import { useState, KeyboardEvent, useEffect } from "react";
+import { useState, KeyboardEvent, useEffect, useRef } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { X, Plus, Loader2 } from "lucide-react";
+import SubmissionControls from "@/modules/submissions/SubmissionControls";
 
-// --- INPUT COMPONENTS ---
-
-const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeholder: string, tags: string[], setTags: (tags: string[]) => void }) => {
+// --- SMART TAG INPUT ---
+const TagInput = ({ label, placeholder, tags, setTags, inputRef }: { label: string, placeholder: string, tags: string[], setTags: (tags: string[]) => void, inputRef: React.MutableRefObject<string> }) => {
   const [inputValue, setInputValue] = useState("");
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+    inputRef.current = e.target.value; 
+  };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && inputValue.trim() !== "") {
@@ -18,6 +24,7 @@ const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeh
         setTags([...tags, inputValue.trim()]);
       }
       setInputValue("");
+      inputRef.current = "";
     }
   };
 
@@ -42,7 +49,7 @@ const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeh
         <input
           type="text"
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           className="w-full text-sm outline-none bg-transparent placeholder:text-slate-400 text-slate-900"
           placeholder={tags.length === 0 ? placeholder : "Type and press Enter to add more..."}
@@ -54,15 +61,18 @@ const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeh
 
 type DonatedItem = { item: string; quantity: number };
 
-const KeyValueInput = ({ items, setItems }: { items: DonatedItem[], setItems: (items: DonatedItem[]) => void }) => {
+const KeyValueInput = ({ items, setItems, nameRef, qtyRef }: { items: DonatedItem[], setItems: (items: DonatedItem[]) => void, nameRef: React.MutableRefObject<string>, qtyRef: React.MutableRefObject<string> }) => {
   const [itemName, setItemName] = useState("");
   const [itemQty, setItemQty] = useState("");
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => { setItemName(e.target.value); nameRef.current = e.target.value; };
+  const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => { setItemQty(e.target.value); qtyRef.current = e.target.value; };
 
   const handleAddItem = () => {
     if (itemName.trim() && itemQty) {
       setItems([...items, { item: itemName.trim(), quantity: parseInt(itemQty) }]);
-      setItemName("");
-      setItemQty("");
+      setItemName(""); setItemQty("");
+      nameRef.current = ""; qtyRef.current = "";
     }
   };
 
@@ -78,14 +88,14 @@ const KeyValueInput = ({ items, setItems }: { items: DonatedItem[], setItems: (i
           <input 
             type="text" 
             value={itemName} 
-            onChange={(e) => setItemName(e.target.value)} 
+            onChange={handleNameChange} 
             placeholder="Item name (e.g. Books, Clothes)" 
             className="flex-1 p-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input 
             type="number" 
             value={itemQty} 
-            onChange={(e) => setItemQty(e.target.value)} 
+            onChange={handleQtyChange} 
             placeholder="Qty" 
             min="1"
             className="w-24 p-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
@@ -136,10 +146,18 @@ export default function HostCertificatePage() {
   const [phones, setPhones] = useState<string[]>([]);
   const [caretakers, setCaretakers] = useState<string[]>([]);
   const [donatedItems, setDonatedItems] = useState<DonatedItem[]>([]);
-  
   const [visitSure, setVisitSure] = useState(true);
+  
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [savedRecord, setSavedRecord] = useState<any>(null);
 
-  // --- NEW: Dynamic Centers State ---
+  // Auto-Save Refs
+  const pendingPhone = useRef("");
+  const pendingEmail = useRef("");
+  const pendingCaretaker = useRef("");
+  const pendingItemName = useRef("");
+  const pendingItemQty = useRef("");
+
   const [availableCenters, setAvailableCenters] = useState<string[]>([]);
   const [isLoadingCenters, setIsLoadingCenters] = useState(true);
 
@@ -152,34 +170,46 @@ export default function HostCertificatePage() {
   } = useForm<HostFormInputs>({
     defaultValues: {
       helpedFinancially: 'No',
-      centerVisited: '' // Default to empty so they are forced to pick one
+      centerVisited: '' 
     }
   });
 
   const currentHelpedFinancially = watch("helpedFinancially");
 
-  // --- Fetch Centers on Mount ---
   useEffect(() => {
     const fetchCenters = async () => {
       try {
         const res = await fetch('/api/settings');
         const json = await res.json();
-        if (json.success) {
-          setAvailableCenters(json.data);
-        }
+        if (json.success) setAvailableCenters(json.data);
       } catch (error) {
-        console.error("Failed to fetch centers", error);
         toast.error("Failed to load active centers.");
       } finally {
         setIsLoadingCenters(false);
       }
     };
-
     fetchCenters();
   }, []);
 
   const onSubmit: SubmitHandler<HostFormInputs> = async (data) => {
-    if (phones.length === 0) {
+    setSavedRecord(null);
+
+    // Auto-Save pending inputs
+    const finalPhones = [...phones];
+    if (pendingPhone.current && !finalPhones.includes(pendingPhone.current)) finalPhones.push(pendingPhone.current);
+
+    const finalEmails = [...emails];
+    if (pendingEmail.current && !finalEmails.includes(pendingEmail.current)) finalEmails.push(pendingEmail.current);
+    
+    const finalCaretakers = [...caretakers];
+    if (pendingCaretaker.current && !finalCaretakers.includes(pendingCaretaker.current)) finalCaretakers.push(pendingCaretaker.current);
+
+    const finalItems = [...donatedItems];
+    if (pendingItemName.current && pendingItemQty.current) {
+        finalItems.push({ item: pendingItemName.current, quantity: parseInt(pendingItemQty.current) });
+    }
+
+    if (finalPhones.length === 0) {
       toast.error("At least one phone number is required.");
       return;
     }
@@ -194,10 +224,10 @@ export default function HostCertificatePage() {
       companyCoordinator: data.companyCoordinator,
       centerVisited: data.centerVisited,
       noOfChildren: data.noOfChildren,
-      phones: phones,
-      emails: emails,
-      caretakers: caretakers,
-      itemsDonated: donatedItems.length > 0 ? donatedItems : null,
+      phones: finalPhones,
+      emails: finalEmails,
+      caretakers: finalCaretakers,
+      itemsDonated: finalItems.length > 0 ? finalItems : null,
       reportUploadLink: data.reportUploadLink,
       futurePartnershipRemarks: data.futurePartnershipRemarks,
       helpedFinancially: data.helpedFinancially === 'Yes',
@@ -212,20 +242,18 @@ export default function HostCertificatePage() {
         body: JSON.stringify(payload),
       });
 
+      const json = await response.json();
+
       if (response.ok) {
         toast.success("Host data saved successfully!", { id: toastId });
+        setSavedRecord(json.data); // Trigger Controls
         reset();
-        setPhones([]);
-        setEmails([]);
-        setCaretakers([]);
-        setDonatedItems([]);
-        setVisitSure(true);
+        setPhones([]); setEmails([]); setCaretakers([]); setDonatedItems([]); setVisitSure(true);
+        pendingPhone.current = ""; pendingEmail.current = ""; pendingCaretaker.current = ""; pendingItemName.current = ""; pendingItemQty.current = "";
       } else {
-        const errorData = await response.json();
-        toast.error(`Failed to save: ${errorData.error || 'Unknown error'}`, { id: toastId });
+        toast.error(`Failed to save: ${json.error || 'Unknown error'}`, { id: toastId });
       }
     } catch (error) {
-      console.error("Submission error:", error);
       toast.error("Network error. Please try again.", { id: toastId });
     }
   };
@@ -237,9 +265,22 @@ export default function HostCertificatePage() {
         <p className="text-sm text-slate-500">Log an event host and generate their certification of appreciation.</p>
       </div>
 
+      {savedRecord && (
+        <SubmissionControls 
+          id={savedRecord.id}
+          currentStatus={savedRecord.status}
+          applicantName={savedRecord.applicantName}
+          certificateType={savedRecord.certificateType}
+          applicantEmail={savedRecord.emails?.[0]} 
+          hideStatusToggle={true} 
+          hideTriggerButton={true}  
+          autoOpenModal={true}        
+          onCloseModal={() => setSavedRecord(null)}
+        />
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-8 rounded-lg border border-slate-200 shadow-sm space-y-8">
         
-        {/* Host Basics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Name of Host<span className="text-red-500 ml-1">*</span></label>
@@ -280,18 +321,14 @@ export default function HostCertificatePage() {
 
         <hr className="border-slate-200" />
 
-        {/* Dynamic Contact Arrays */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <TagInput label="Phone Numbers *" placeholder="Enter phone and press Enter" tags={phones} setTags={setPhones} />
-          <TagInput label="Email Addresses (Optional)" placeholder="Enter email and press Enter" tags={emails} setTags={setEmails} />
+          <TagInput label="Phone Numbers *" placeholder="Enter phone and press Enter" tags={phones} setTags={setPhones} inputRef={pendingPhone} />
+          <TagInput label="Email Addresses (Optional)" placeholder="Enter email and press Enter" tags={emails} setTags={setEmails} inputRef={pendingEmail} />
         </div>
 
         <hr className="border-slate-200" />
 
-        {/* Event Specifics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          
-          {/* --- NEW: Dynamic Dropdown UI --- */}
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Center Visited<span className="text-red-500 ml-1">*</span></label>
             <div className="relative">
@@ -321,15 +358,14 @@ export default function HostCertificatePage() {
           </div>
           
           <div className="md:col-span-2">
-            <TagInput label="Names of Caretakers (Optional)" placeholder="Enter caretaker name and press Enter" tags={caretakers} setTags={setCaretakers} />
+            <TagInput label="Names of Caretakers (Optional)" placeholder="Enter caretaker name and press Enter" tags={caretakers} setTags={setCaretakers} inputRef={pendingCaretaker} />
           </div>
         </div>
 
         <hr className="border-slate-200" />
 
-        {/* Post-Event Data */}
         <div className="grid grid-cols-1 gap-6">
-          <KeyValueInput items={donatedItems} setItems={setDonatedItems} />
+          <KeyValueInput items={donatedItems} setItems={setDonatedItems} nameRef={pendingItemName} qtyRef={pendingItemQty} />
           
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Report Upload (Google Drive Link)</label>

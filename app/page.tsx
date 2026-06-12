@@ -235,7 +235,7 @@ export default function AdminDashboard() {
     <div className="p-8 w-full max-w-350 mx-auto bg-slate-50 min-h-screen">
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Manage Submissions</h1>
+          <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
           <p className="text-slate-500 mt-1">Review and approve certificate requests.</p>
         </div>
         

@@ -1,11 +1,10 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CheckCircle2, XCircle, Clock, FileBadge, Loader2, Mail, HardDrive, Download, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
-
 
 import {
   Dialog,
@@ -24,18 +23,46 @@ interface ControlProps {
   applicantName: string | null;
   certificateType: string;
   applicantEmail?: string;
+  hideStatusToggle?: boolean;
+  hideTriggerButton?: boolean;
+  autoOpenModal?: boolean;
+  onCloseModal?: () => void;
 }
 
-export default function SubmissionControls({ id, currentStatus, applicantName, certificateType, applicantEmail }: ControlProps) {
+export default function SubmissionControls({ 
+  id, 
+  currentStatus, 
+  applicantName, 
+  certificateType, 
+  applicantEmail,
+  hideStatusToggle = false,
+  hideTriggerButton = false,
+  autoOpenModal = false,
+  onCloseModal
+}: ControlProps) {
   const [status, setStatus] = useState(currentStatus);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const router = useRouter();
 
+  // --- Auto-Open Effect ---
+  useEffect(() => {
+    if (autoOpenModal && status === 'APPROVED') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsModalOpen(true); 
+    }
+  }, [autoOpenModal, status]);
+
+  const handleModalOpenChange = (open: boolean) => {
+    setIsModalOpen(open);
+    if (!open && onCloseModal) {
+      onCloseModal(); // Trigger cleanup in the parent when modal closes
+    }
+  };
+
   // --- Modal Generation State ---
   const [saveLocally, setSaveLocally] = useState(true);
-  // Default checked as requested
   const [saveToDrive, setSaveToDrive] = useState(true); 
   const [sendEmail, setSendEmail] = useState(true);
   const [includeQuantity, setIncludeQuantity] = useState(true);
@@ -73,10 +100,8 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
   };
 
   const handleGenerateCertificate = async () => {
-    // Determine the primary email to send to
     const targetEmail = sendEmail ? (applicantEmail || manualEmail) : null;
     
-    // Basic validation if they check the box but leave the manual input empty
     if (sendEmail && !targetEmail) {
         toast.error("Please provide an email address to send to.");
         return;
@@ -95,7 +120,7 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
                 saveLocally,
                 saveToDrive,
                 sendEmail,
-                targetEmail: targetEmail, // Pass the resolved email back
+                targetEmail: targetEmail, 
                 ccEmail: showCcInput && ccEmail ? ccEmail : null,
                 includeQuantity
             }
@@ -121,7 +146,7 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
       }
 
       toast.success("Generation complete!", { id: toastId });
-      setIsModalOpen(false); 
+      handleModalOpenChange(false); // Close modal and trigger parent cleanup
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.error("PDF Error:", error);
@@ -131,152 +156,145 @@ export default function SubmissionControls({ id, currentStatus, applicantName, c
     }
   };
 
-  return (
-    <div className="flex flex-wrap items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+  // Extract Modal Content so we don't repeat it
+  const ModalContent = (
+    <DialogContent className="sm:max-w-106.25">
+      <DialogHeader>
+        <DialogTitle>Configure Generation</DialogTitle>
+        <DialogDescription>
+          Select how you want to process and distribute this certificate.
+        </DialogDescription>
+      </DialogHeader>
       
-      <div className="flex items-center gap-2 border-r pr-4 mr-2">
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Update Status</span>
-        <button 
-          onClick={() => updateStatus('APPROVED')}
-          disabled={isUpdating || status === 'APPROVED'}
-          className={`p-2 rounded-lg transition-all ${status === 'APPROVED' ? 'bg-green-100 text-green-600 ring-2 ring-green-500' : 'bg-slate-50 text-slate-400 hover:bg-green-50 hover:text-green-600'}`}
-          title="Approve"
-        >
-          <CheckCircle2 className="h-5 w-5" />
-        </button>
-        <button 
-          onClick={() => updateStatus('REJECTED')}
-          disabled={isUpdating || status === 'REJECTED'}
-          className={`p-2 rounded-lg transition-all ${status === 'REJECTED' ? 'bg-red-100 text-red-600 ring-2 ring-red-500' : 'bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-600'}`}
-          title="Reject"
-        >
-          <XCircle className="h-5 w-5" />
-        </button>
-        <button 
-          onClick={() => updateStatus('PENDING')}
-          disabled={isUpdating || status === 'PENDING'}
-          className={`p-2 rounded-lg transition-all ${status === 'PENDING' ? 'bg-amber-100 text-amber-600 ring-2 ring-amber-500' : 'bg-slate-50 text-slate-400 hover:bg-amber-50 hover:text-amber-600'}`}
-          title="Reset to Pending"
-        >
-          <Clock className="h-5 w-5" />
-        </button>
-      </div>
+      <div className="py-4 space-y-5">
+        {/* Item Settings */}
+        {['DONOR', 'HOST', 'VISITOR'].includes(certificateType) && (
+            <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg space-y-2">
+                <span className="text-xs font-bold text-amber-800 uppercase tracking-widest block">Item Settings</span>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" checked={includeQuantity} onChange={(e) => setIncludeQuantity(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600" />
+                  <span className="text-sm font-medium text-slate-700">List item quantities alongside items</span>
+                </label>
+            </div>
+        )}
 
-      {status === 'APPROVED' && (
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
-              <FileBadge className="h-4 w-4" />
-              Generate Certificate
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-106.25">
-            <DialogHeader>
-              <DialogTitle>Configure Generation</DialogTitle>
-              <DialogDescription>
-                Select how you want to process and distribute this certificate.
-              </DialogDescription>
-            </DialogHeader>
+        {/* Distribution Settings */}
+        <div className="space-y-3">
+            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">Distribution</span>
             
-            <div className="py-4 space-y-5">
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <input type="checkbox" checked={saveLocally} onChange={(e) => setSaveLocally(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600" />
+              <Download className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+              <span className="text-sm font-medium text-slate-700">Download to local PC</span>
+            </label>
+
+            <label className="flex items-center gap-3 cursor-pointer group">
+              <input type="checkbox" checked={saveToDrive} onChange={(e) => setSaveToDrive(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600" />
+              <HardDrive className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+              <span className="text-sm font-medium text-slate-700">Save to NGO Google Drive</span>
+            </label>
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-3 cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    checked={sendEmail} 
+                    onChange={(e) => setSendEmail(e.target.checked)} 
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600" 
+                  />
+                  <Mail className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                  <span className="text-sm font-medium text-slate-700 flex-1">
+                    Email applicant
+                  </span>
+              </label>
               
-              {/* Item Settings */}
-              {['DONOR', 'HOST', 'VISITOR'].includes(certificateType) && (
-                  <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg space-y-2">
-                      <span className="text-xs font-bold text-amber-800 uppercase tracking-widest block">Item Settings</span>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <input type="checkbox" checked={includeQuantity} onChange={(e) => setIncludeQuantity(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600" />
-                        <span className="text-sm font-medium text-slate-700">List item quantities alongside items</span>
-                      </label>
+              {sendEmail && (
+                  <div className="pl-7 pt-1 space-y-3 animate-in fade-in slide-in-from-top-1">
+                      {applicantEmail ? (
+                          <div className="text-sm text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
+                              Sending to: <span className="font-medium text-slate-900">{applicantEmail}</span>
+                          </div>
+                      ) : (
+                          <div className="space-y-1">
+                              <span className="text-xs font-semibold text-red-500 italic">No email on file. Enter manually:</span>
+                              <input 
+                                  type="email" 
+                                  placeholder="applicant@email.com" 
+                                  value={manualEmail}
+                                  onChange={(e) => setManualEmail(e.target.value)}
+                                  className="flex h-8 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-600"
+                                  required
+                              />
+                          </div>
+                      )}
+
+                      {!showCcInput ? (
+                          <button onClick={() => setShowCcInput(true)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors mt-2">
+                              <Plus className="h-3 w-3" /> Add CC / Another Email
+                          </button>
+                      ) : (
+                          <input 
+                              type="email" 
+                              placeholder="CC: example@email.com" 
+                              value={ccEmail}
+                              onChange={(e) => setCcEmail(e.target.value)}
+                              className="flex h-8 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-600"
+                          />
+                      )}
                   </div>
               )}
-
-              {/* Distribution Settings */}
-              <div className="space-y-3">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest block">Distribution</span>
-                  
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" checked={saveLocally} onChange={(e) => setSaveLocally(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600" />
-                    <Download className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
-                    <span className="text-sm font-medium text-slate-700">Download to local PC</span>
-                  </label>
-
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" checked={saveToDrive} onChange={(e) => setSaveToDrive(e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600" />
-                    <HardDrive className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
-                    <span className="text-sm font-medium text-slate-700">Save to NGO Google Drive</span>
-                  </label>
-
-                  <div className="space-y-2">
-                    <label className="flex items-center gap-3 cursor-pointer group">
-                        <input 
-                          type="checkbox" 
-                          checked={sendEmail} 
-                          onChange={(e) => setSendEmail(e.target.checked)} 
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-600" 
-                        />
-                        <Mail className="h-4 w-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
-                        <span className="text-sm font-medium text-slate-700 flex-1">
-                          Email applicant
-                        </span>
-                    </label>
-                    
-                    {sendEmail && (
-                        <div className="pl-7 pt-1 space-y-3 animate-in fade-in slide-in-from-top-1">
-                            
-                            {/* Primary Email Handling */}
-                            {applicantEmail ? (
-                                <div className="text-sm text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
-                                    Sending to: <span className="font-medium text-slate-900">{applicantEmail}</span>
-                                </div>
-                            ) : (
-                                <div className="space-y-1">
-                                    <span className="text-xs font-semibold text-red-500 italic">No email on file. Enter manually:</span>
-                                    <input 
-                                        type="email" 
-                                        placeholder="applicant@email.com" 
-                                        value={manualEmail}
-                                        onChange={(e) => setManualEmail(e.target.value)}
-                                        className="flex h-8 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-600"
-                                        required
-                                    />
-                                </div>
-                            )}
-
-                            {/* CC Email Handling */}
-                            {!showCcInput ? (
-                                <button onClick={() => setShowCcInput(true)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors mt-2">
-                                    <Plus className="h-3 w-3" /> Add CC / Another Email
-                                </button>
-                            ) : (
-                                <input 
-                                    type="email" 
-                                    placeholder="CC: example@email.com" 
-                                    value={ccEmail}
-                                    onChange={(e) => setCcEmail(e.target.value)}
-                                    className="flex h-8 w-full rounded-md border border-slate-200 bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-600"
-                                />
-                            )}
-                        </div>
-                    )}
-                  </div>
-              </div>
             </div>
+        </div>
+      </div>
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsModalOpen(false)} disabled={isGenerating}>Cancel</Button>
-              <Button onClick={handleGenerateCertificate} disabled={isGenerating || (!saveLocally && !saveToDrive && !sendEmail)} className="bg-blue-600 min-w-35">
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Processing
-                  </>
-                ) : (
-                  "Confirm & Process"
-                )}
+      <DialogFooter>
+        <Button variant="outline" onClick={() => handleModalOpenChange(false)} disabled={isGenerating}>Cancel</Button>
+        <Button onClick={handleGenerateCertificate} disabled={isGenerating || (!saveLocally && !saveToDrive && !sendEmail)} className="bg-blue-600 min-w-35">
+          {isGenerating ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Processing
+            </>
+          ) : (
+            "Confirm & Process"
+          )}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+
+  // SCENARIO 1: Hidden wrapper (For the Form Pages after saving)
+  if (hideStatusToggle && hideTriggerButton) {
+    return (
+      <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
+        {status === 'APPROVED' && ModalContent}
+      </Dialog>
+    );
+  }
+
+  // SCENARIO 2: Full UI (For the Admin Submissions Details Page)
+  return (
+    <div className="flex flex-wrap items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      {!hideStatusToggle && (
+        <div className="flex items-center gap-2 border-r pr-4 mr-2">
+          <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Update Status</span>
+          <button onClick={() => updateStatus('APPROVED')} disabled={isUpdating || status === 'APPROVED'} className={`p-2 rounded-lg transition-all ${status === 'APPROVED' ? 'bg-green-100 text-green-600 ring-2 ring-green-500' : 'bg-slate-50 text-slate-400 hover:bg-green-50 hover:text-green-600'}`} title="Approve"><CheckCircle2 className="h-5 w-5" /></button>
+          <button onClick={() => updateStatus('REJECTED')} disabled={isUpdating || status === 'REJECTED'} className={`p-2 rounded-lg transition-all ${status === 'REJECTED' ? 'bg-red-100 text-red-600 ring-2 ring-red-500' : 'bg-slate-50 text-slate-400 hover:bg-red-50 hover:text-red-600'}`} title="Reject"><XCircle className="h-5 w-5" /></button>
+          <button onClick={() => updateStatus('PENDING')} disabled={isUpdating || status === 'PENDING'} className={`p-2 rounded-lg transition-all ${status === 'PENDING' ? 'bg-amber-100 text-amber-600 ring-2 ring-amber-500' : 'bg-slate-50 text-slate-400 hover:bg-amber-50 hover:text-amber-600'}`} title="Reset to Pending"><Clock className="h-5 w-5" /></button>
+        </div>
+      )}
+
+      {status === 'APPROVED' && (
+        <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
+          {!hideTriggerButton && (
+            <DialogTrigger asChild>
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+                <FileBadge className="h-4 w-4" />
+                Generate Certificate
               </Button>
-            </DialogFooter>
-          </DialogContent>
+            </DialogTrigger>
+          )}
+          {ModalContent}
         </Dialog>
       )}
     </div>

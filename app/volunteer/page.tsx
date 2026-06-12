@@ -1,7 +1,10 @@
+/* eslint-disable react-hooks/incompatible-library */
 'use client';
 
+import { useState } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import toast from 'react-hot-toast';
+import SubmissionControls from "@/modules/submissions/SubmissionControls";
 
 type VolunteerFormInputs = {
   applicantName: string;
@@ -23,6 +26,9 @@ type VolunteerFormInputs = {
 };
 
 export default function VolunteerCertificatePage() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [savedRecord, setSavedRecord] = useState<any>(null);
+
   const { 
     register, 
     handleSubmit, 
@@ -31,7 +37,7 @@ export default function VolunteerCertificatePage() {
     formState: { isSubmitting, errors } 
   } = useForm<VolunteerFormInputs>({
     defaultValues: {
-      donationType: 'Non Financial'
+      donationType: 'No' // Set default to No as requested
     }
   });
 
@@ -39,6 +45,7 @@ export default function VolunteerCertificatePage() {
 
   const onSubmit: SubmitHandler<VolunteerFormInputs> = async (data) => {
     const toastId = toast.loading("Saving volunteer data...");
+    setSavedRecord(null);
 
     try {
       const response = await fetch('/api/submissions', {
@@ -50,12 +57,14 @@ export default function VolunteerCertificatePage() {
         }),
       });
 
+      const json = await response.json();
+
       if (response.ok) {
         toast.success("Volunteer data saved successfully!", { id: toastId });
+        setSavedRecord(json.data); // Save the response so the controls appear/trigger modal
         reset(); 
       } else {
-        const errorData = await response.json();
-        toast.error(`Failed to save: ${errorData.error || 'Unknown error'}`, { id: toastId });
+        toast.error(`Failed to save: ${json.error || 'Unknown error'}`, { id: toastId });
       }
     } catch (error) {
       console.error("Submission error:", error);
@@ -69,6 +78,24 @@ export default function VolunteerCertificatePage() {
         <h2 className="text-2xl font-bold text-slate-900">Volunteer Certificate Form</h2>
         <p className="text-sm text-slate-500">Fill in the volunteer details to generate their completion certificate.</p>
       </div>
+
+      {savedRecord && (
+        <div className="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-lg animate-in fade-in slide-in-from-top-4">
+          <h3 className="text-lg font-semibold text-blue-900 mb-2">Record Saved Successfully!</h3>
+          <p className="text-sm text-blue-800 mb-4">You can now generate and send the certificate directly from here, or fill the form again to add another record.</p>
+          <SubmissionControls 
+            id={savedRecord.id}
+            currentStatus={savedRecord.status}
+            applicantName={savedRecord.applicantName}
+            certificateType={savedRecord.certificateType}
+            applicantEmail={savedRecord.emails?.[0]} 
+            hideStatusToggle={true} 
+            hideTriggerButton={true}     
+            autoOpenModal={true}         
+            onCloseModal={() => setSavedRecord(null)}  
+          />
+        </div>
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-8 rounded-lg border border-slate-200 shadow-sm space-y-6">
         
@@ -173,19 +200,21 @@ export default function VolunteerCertificatePage() {
         {/* Additional Data */}
         <div className="grid grid-cols-1 gap-6">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">University Name<span className="text-red-500 ml-1">*</span></label>
+            {/* REMOVED REQUIRED FLAG AS REQUESTED */}
+            <label className="text-sm font-medium text-slate-700">University Name</label>
             <input 
-              {...register("universityName", { required: true })} 
+              {...register("universityName")} 
               type="text" 
-              className={`w-full p-2.5 border rounded-md outline-none ${errors.universityName ? 'border-red-500' : 'border-slate-300'}`} 
+              className={`w-full p-2.5 border rounded-md outline-none border-slate-300`} 
               placeholder="Enter university name" 
             />
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">Donation Type<span className="text-red-500 ml-1">*</span></label>
-              <select {...register("donationType", { required: true })} className="w-full p-2.5 border border-slate-300 rounded-md outline-none">
+              <label className="text-sm font-medium text-slate-700">Donation Type</label>
+              <select {...register("donationType")} className="w-full p-2.5 border border-slate-300 rounded-md outline-none">
+                <option value="No">None</option>
                 <option value="Non Financial">Non Financial</option>
                 <option value="Financial">Financial</option>
                 <option value="Both">Both</option>

@@ -1,15 +1,22 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/incompatible-library */
 "use client";
 
-import { useState, KeyboardEvent, useEffect } from "react";
+import { useState, KeyboardEvent, useEffect, useRef } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { X, Plus, Loader2 } from "lucide-react";
+import SubmissionControls from "@/modules/submissions/SubmissionControls";
 
-// --- CUSTOM INPUT ---
 
-const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeholder: string, tags: string[], setTags: (tags: string[]) => void }) => {
+// --- SMART TAG INPUT ---
+const TagInput = ({ label, placeholder, tags, setTags, inputRef }: { label: string, placeholder: string, tags: string[], setTags: (tags: string[]) => void, inputRef: React.MutableRefObject<string> }) => {
   const [inputValue, setInputValue] = useState("");
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputValue(e.target.value);
+    inputRef.current = e.target.value; 
+  };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && inputValue.trim() !== "") {
@@ -18,6 +25,7 @@ const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeh
         setTags([...tags, inputValue.trim()]);
       }
       setInputValue("");
+      inputRef.current = "";
     }
   };
 
@@ -42,7 +50,7 @@ const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeh
         <input
           type="text"
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           className="w-full text-sm outline-none bg-transparent placeholder:text-slate-400 text-slate-900"
           placeholder={tags.length === 0 ? placeholder : "Type and press Enter to add more..."}
@@ -54,15 +62,18 @@ const TagInput = ({ label, placeholder, tags, setTags }: { label: string, placeh
 
 type DonatedItem = { item: string; quantity: number };
 
-const KeyValueInput = ({ items, setItems }: { items: DonatedItem[], setItems: (items: DonatedItem[]) => void }) => {
+const KeyValueInput = ({ items, setItems, nameRef, qtyRef }: { items: DonatedItem[], setItems: (items: DonatedItem[]) => void, nameRef: React.MutableRefObject<string>, qtyRef: React.MutableRefObject<string> }) => {
   const [itemName, setItemName] = useState("");
   const [itemQty, setItemQty] = useState("");
+
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => { setItemName(e.target.value); nameRef.current = e.target.value; };
+  const handleQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => { setItemQty(e.target.value); qtyRef.current = e.target.value; };
 
   const handleAddItem = () => {
     if (itemName.trim() && itemQty) {
       setItems([...items, { item: itemName.trim(), quantity: parseInt(itemQty) }]);
-      setItemName("");
-      setItemQty("");
+      setItemName(""); setItemQty("");
+      nameRef.current = ""; qtyRef.current = "";
     }
   };
 
@@ -78,14 +89,14 @@ const KeyValueInput = ({ items, setItems }: { items: DonatedItem[], setItems: (i
           <input 
             type="text" 
             value={itemName} 
-            onChange={(e) => setItemName(e.target.value)} 
+            onChange={handleNameChange} 
             placeholder="Item name (e.g. Books, Clothes)" 
             className="flex-1 p-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
           />
           <input 
             type="number" 
             value={itemQty} 
-            onChange={(e) => setItemQty(e.target.value)} 
+            onChange={handleQtyChange} 
             placeholder="Qty" 
             min="1"
             className="w-24 p-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
@@ -142,7 +153,15 @@ export default function DonationCertificatePage() {
   const [donatedItems, setDonatedItems] = useState<DonatedItem[]>([]);
   const [visitSure, setVisitSure] = useState(true);
 
-  // --- NEW: Dynamic Centers State ---
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [savedRecord, setSavedRecord] = useState<any>(null);
+
+  // Auto-Save Refs
+  const pendingPhone = useRef("");
+  const pendingEmail = useRef("");
+  const pendingItemName = useRef("");
+  const pendingItemQty = useRef("");
+
   const [availableCenters, setAvailableCenters] = useState<string[]>([]);
   const [isLoadingCenters, setIsLoadingCenters] = useState(true);
 
@@ -156,7 +175,7 @@ export default function DonationCertificatePage() {
     defaultValues: {
       logisticsMethod: 'Drop',
       helpedFinancially: 'No',
-      centerVisited: '', // Default empty to force selection
+      centerVisited: '',
       pickupChargesPaidBy: 'Donor'
     }
   });
@@ -164,17 +183,13 @@ export default function DonationCertificatePage() {
   const currentLogistics = watch("logisticsMethod");
   const currentHelpedFinancially = watch("helpedFinancially");
 
-  // --- NEW: Fetch Centers on Mount ---
   useEffect(() => {
     const fetchCenters = async () => {
       try {
         const res = await fetch('/api/settings');
         const json = await res.json();
-        if (json.success) {
-          setAvailableCenters(json.data);
-        }
+        if (json.success) setAvailableCenters(json.data);
       } catch (error) {
-        console.error("Failed to fetch centers", error);
         toast.error("Failed to load active centers.");
       } finally {
         setIsLoadingCenters(false);
@@ -184,11 +199,25 @@ export default function DonationCertificatePage() {
   }, []);
 
   const onSubmit: SubmitHandler<DonorFormInputs> = async (data) => {
-    if (phones.length === 0) {
+    setSavedRecord(null);
+
+    // Auto-Save pending inputs
+    const finalPhones = [...phones];
+    if (pendingPhone.current && !finalPhones.includes(pendingPhone.current)) finalPhones.push(pendingPhone.current);
+
+    const finalEmails = [...emails];
+    if (pendingEmail.current && !finalEmails.includes(pendingEmail.current)) finalEmails.push(pendingEmail.current);
+
+    const finalItems = [...donatedItems];
+    if (pendingItemName.current && pendingItemQty.current) {
+        finalItems.push({ item: pendingItemName.current, quantity: parseInt(pendingItemQty.current) });
+    }
+
+    if (finalPhones.length === 0) {
       toast.error("At least one phone number is required.");
       return;
     }
-    if (donatedItems.length === 0) {
+    if (finalItems.length === 0) {
       toast.error("You must add at least one donated item.");
       return;
     }
@@ -204,11 +233,11 @@ export default function DonationCertificatePage() {
       applicantName: data.applicantName,
       certificateType: 'DONOR',
       attendantName: data.attendantName,
-      phones: phones,
-      emails: emails,
+      phones: finalPhones,
+      emails: finalEmails,
       logisticsMethod: data.logisticsMethod,
       facilityLocation: data.logisticsMethod === 'Pickup' ? data.pickupAddress || "" : data.centerVisited,
-      itemsDonated: donatedItems,
+      itemsDonated: finalItems,
       helpedFinancially: data.helpedFinancially === 'Yes',
       financialAmount: data.financialAmount,
       nextFollowUpDue: visitSure ? data.nextFollowUpDue : null,
@@ -229,19 +258,18 @@ export default function DonationCertificatePage() {
         body: JSON.stringify(payload),
       });
 
+      const json = await response.json();
+
       if (response.ok) {
         toast.success("Donation data saved successfully!", { id: toastId });
+        setSavedRecord(json.data); // Trigger Controls
         reset();
-        setPhones([]);
-        setEmails([]);
-        setDonatedItems([]);
-        setVisitSure(true);
+        setPhones([]); setEmails([]); setDonatedItems([]); setVisitSure(true);
+        pendingPhone.current = ""; pendingEmail.current = ""; pendingItemName.current = ""; pendingItemQty.current = "";
       } else {
-        const errorData = await response.json();
-        toast.error(`Failed to save: ${errorData.error || 'Unknown error'}`, { id: toastId });
+        toast.error(`Failed to save: ${json.error || 'Unknown error'}`, { id: toastId });
       }
     } catch (error) {
-      console.error("Submission error:", error);
       toast.error("Network error. Please try again.", { id: toastId });
     }
   };
@@ -253,9 +281,22 @@ export default function DonationCertificatePage() {
         <p className="text-sm text-slate-500">Record item donations, logistics, and generate donor certificates.</p>
       </div>
 
+      {savedRecord && (
+              <SubmissionControls 
+                id={savedRecord.id}
+                currentStatus={savedRecord.status}
+                applicantName={savedRecord.applicantName}
+                certificateType={savedRecord.certificateType}
+                applicantEmail={savedRecord.emails?.[0]} 
+                hideStatusToggle={true} 
+                hideTriggerButton={true}  
+                autoOpenModal={true}        
+                onCloseModal={() => setSavedRecord(null)}
+              />
+            )}
+
       <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-8 rounded-lg border border-slate-200 shadow-sm space-y-8">
         
-        {/* Donor Basics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700">Donor Name<span className="text-red-500 ml-1">*</span></label>
@@ -275,13 +316,12 @@ export default function DonationCertificatePage() {
               placeholder="Assigned attendant" 
             />
           </div>
-          <TagInput label="Phone Numbers *" placeholder="Enter phone and press Enter" tags={phones} setTags={setPhones} />
-          <TagInput label="Email Addresses" placeholder="Enter email and press Enter" tags={emails} setTags={setEmails} />
+          <TagInput label="Phone Numbers *" placeholder="Enter phone and press Enter" tags={phones} setTags={setPhones} inputRef={pendingPhone} />
+          <TagInput label="Email Addresses" placeholder="Enter email and press Enter" tags={emails} setTags={setEmails} inputRef={pendingEmail} />
         </div>
 
         <hr className="border-slate-200" />
 
-        {/* Logistics Engine */}
         <div className="bg-slate-50 p-6 rounded-lg border border-slate-200 space-y-6">
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-900">Logistics Method<span className="text-red-500 ml-1">*</span></label>
@@ -345,14 +385,12 @@ export default function DonationCertificatePage() {
 
         <hr className="border-slate-200" />
 
-        {/* Inventory */}
         <div className="space-y-6">
-          <KeyValueInput items={donatedItems} setItems={setDonatedItems} />
+          <KeyValueInput items={donatedItems} setItems={setDonatedItems} nameRef={pendingItemName} qtyRef={pendingItemQty} />
         </div>
 
         <hr className="border-slate-200" />
 
-        {/* Section 4: Socials */}
         <div className="grid grid-cols-1 gap-6">
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
             <label className="block text-sm font-medium text-slate-700 mb-4">Social Media Links (Optional)</label>
@@ -365,7 +403,6 @@ export default function DonationCertificatePage() {
           </div>
         </div>
 
-        {/* Section 5: Post-Donation Data */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-lg border border-slate-200">
           <div className="space-y-4">
             <div className="space-y-2">

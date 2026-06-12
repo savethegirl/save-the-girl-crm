@@ -123,6 +123,10 @@ export async function POST(req: Request) {
     // Embed Bold Font & Prepare Text Data
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const { applicantName, postRole, startDate, endDate } = submission;
+    
+    // --- FORCE ALL CAPS FOR CERTIFICATE NAME ---
+    const pdfDisplayName = (applicantName || "Unknown Name").toUpperCase();
+
     const textColor = rgb(0.1, 0.1, 0.1);
     
     const formatDt = (dt: Date | null) => dt ? new Date(dt).toLocaleDateString('en-IN') : 'N/A';
@@ -133,9 +137,7 @@ export async function POST(req: Request) {
     switch (typeKey) {
       case 'VOLUNTEER':
         page.drawText(generationDate, { x: 160, y: 1137, size: 28, font: boldFont, color: textColor });
-        
-        const volNameText = applicantName || "Unknown Name";
-        drawScaledCenteredText(page, volNameText, boldFont, 56, 775, center, 770, textColor);
+        drawScaledCenteredText(page, pdfDisplayName, boldFont, 56, 775, center, 770, textColor);
         
         const volRoleText = postRole || "Volunteer";
         const volRoleWidth = boldFont.widthOfTextAtSize(volRoleText, 36);
@@ -146,9 +148,7 @@ export async function POST(req: Request) {
 
       case 'INTERN':
         page.drawText(generationDate, { x: 182, y: 870, size: 28, font: boldFont, color: textColor });
-        
-        const internNameText = applicantName || "Unknown Name";
-        drawScaledCenteredText(page, internNameText, boldFont, 56, 1200, center, 773, textColor);
+        drawScaledCenteredText(page, pdfDisplayName, boldFont, 56, 1200, center, 773, textColor);
         
         const internRoleText = postRole || "Intern";
         const internRoleWidth = boldFont.widthOfTextAtSize(internRoleText, 36);
@@ -158,18 +158,18 @@ export async function POST(req: Request) {
         break;
 
       case 'VISITOR':
-        const visName = applicantName || "Unknown Name";
-        
         const visNameLineStartX = 1080; 
         const visNameLineEndX = 1750;
         const visNameMaxWidth = visNameLineEndX - visNameLineStartX;
         const visNameLineCenter = visNameLineStartX + (visNameMaxWidth / 2);
         
-        drawScaledCenteredText(page, visName, boldFont, 48, visNameMaxWidth, visNameLineCenter, 910, textColor);
+        drawScaledCenteredText(page, pdfDisplayName, boldFont, 48, visNameMaxWidth, visNameLineCenter, 910, textColor);
 
         const visitDateStr = formatDt(submission.visitDate);
         const facilityStr = submission.centerVisited || "Our Center";
-        const centerAndDate = `${facilityStr.toUpperCase()}, ${visitDateStr}`;
+        
+        // --- VISITOR FORMATTING FIX: Clean pipe separator instead of squished comma ---
+        const centerAndDate = `${facilityStr.toUpperCase()}   |   ${visitDateStr}`;
         
         const facilityLineStartX = 400;
         const facilityLineEndX = 1550;
@@ -181,10 +181,11 @@ export async function POST(req: Request) {
         let visDonationStr = "N/A";
         const visItems = submission.itemsDonated as { item: string, quantity: number }[] | null;
         
+        // --- UPPERCASE ITEMS FOR VISITOR ---
         if (visItems && visItems.length > 0) {
             visDonationStr = options?.includeQuantity 
-                ? visItems.map(i => `${i.item} x${i.quantity}`).join(', ')
-                : visItems.map(i => i.item).join(', ');
+                ? visItems.map(i => `${i.item.toUpperCase()} x${i.quantity}`).join(', ')
+                : visItems.map(i => i.item.toUpperCase()).join(', ');
         } else if (submission.helpedFinancially) {
             visDonationStr = `Financial Support (Rs. ${submission.financialAmount})`;
         }
@@ -193,10 +194,8 @@ export async function POST(req: Request) {
         const visDonLineEndX = 1780; 
         const visDonMaxWidth = visDonLineEndX - visDonLineStartX; 
         const visDonLineCenterItems = visDonLineStartX + (visDonMaxWidth / 2); 
-        
         const visBaselineY = 610; 
         
-        // --- DYNAMIC SIZING GATE (DO NOT TOUCH THIS MATH) ---
         const visMaxItemFontSize = 38;
         const visWrapItemFontSize = 28;
         const visWidthAtMaxSize = boldFont.widthOfTextAtSize(visDonationStr, visMaxItemFontSize);
@@ -229,42 +228,35 @@ export async function POST(req: Request) {
         break;
       
         case 'DONOR':
-        // 1. DATE: 
         const donorDateStr = formatDt(submission.createdAt);
         drawScaledCenteredText(page, donorDateStr, boldFont, 28, 260, 370, 1000, textColor);
 
-        // 2. NAME: 
-        const donorNameText = applicantName || "Unknown Name";
-        drawScaledCenteredText(page, donorNameText, boldFont, 64, 1200, 1075, 755, textColor);
+        drawScaledCenteredText(page, pdfDisplayName, boldFont, 64, 1200, 1075, 755, textColor);
 
-        // 3. ITEMS: (Your pixels + New Dynamic Sizing Logic)
         let donorDonationStr = "N/A";
         const donorItems = submission.itemsDonated as { item: string, quantity: number }[] | null;
         
+        // --- UPPERCASE ITEMS FOR DONOR ---
         if (donorItems && donorItems.length > 0) {
             donorDonationStr = options?.includeQuantity 
-                ? donorItems.map(i => `${i.item} x${i.quantity}`).join(', ')
-                : donorItems.map(i => i.item).join(', ');
+                ? donorItems.map(i => `${i.item.toUpperCase()} x${i.quantity}`).join(', ')
+                : donorItems.map(i => i.item.toUpperCase()).join(', ');
         } else if (submission.helpedFinancially) {
             donorDonationStr = `Financial Support (Rs. ${submission.financialAmount})`;
         }
         
-        // exact line coordinates
         const donorDonLineStartX = 680; 
         const donorDonLineEndX = 1700; 
         const donorDonMaxWidth = donorDonLineEndX - donorDonLineStartX; 
         const donorDonLineCenterItems = donorDonLineStartX + (donorDonMaxWidth / 2); 
         const baselineY = 630; 
         
-        // --- THE DYNAMIC SIZING GATE ---
-        const maxItemFontSize = 38; // The big, bold target size for short lists
-        const wrapItemFontSize = 28; //  fallback size for stacking long lists
+        const maxItemFontSize = 38; 
+        const wrapItemFontSize = 28; 
         
-        // Measure it at the big font size first
         const widthAtMaxSize = boldFont.widthOfTextAtSize(donorDonationStr, maxItemFontSize);
         
         if (widthAtMaxSize <= donorDonMaxWidth) {
-            // SCENARIO A: draw it big and centered on a single line.
             page.drawText(donorDonationStr, {
                 x: donorDonLineCenterItems - (widthAtMaxSize / 2),
                 y: baselineY,
@@ -273,7 +265,6 @@ export async function POST(req: Request) {
                 color: textColor
             });
         } else {
-            // SCENARIO B: wrapping logic to stack it cleanly.
             const donorDonationLines = wrapText(donorDonationStr, donorDonMaxWidth, boldFont, wrapItemFontSize);
             const lineHeight = 35; 
             let currentY = baselineY + ((donorDonationLines.length - 1) * lineHeight);
@@ -293,47 +284,41 @@ export async function POST(req: Request) {
         break;
         
       case 'HOST':
-        // 1. DATE: 
         const hostDate = submission.visitDate || submission.startDate || submission.createdAt;
         page.drawText(formatDt(hostDate), { x: 158, y: 1050, size: 34, font: boldFont, color: textColor });
 
-        // 2. NAME: 
-        const hostName = applicantName || "Unknown Name";
         const hostNameLineCenter = 1064 + ((rightMarginX - 1064) / 2);
-        drawScaledCenteredText(page, hostName, boldFont, 48, 750, hostNameLineCenter, 872, textColor);
+        drawScaledCenteredText(page, pdfDisplayName, boldFont, 48, 750, hostNameLineCenter, 872, textColor);
 
-        // 3. FACILITY 
         const hostFacilityStr = (submission.facilityLocation || "Our Center").toUpperCase();
         const hostFacWidth = boldFont.widthOfTextAtSize(hostFacilityStr, 38);
         const hostFacLineCenter = 791 + ((rightMarginX - 791) / 2);
         page.drawText(hostFacilityStr, { x: hostFacLineCenter - (hostFacWidth / 2), y: 760, size: 38, font: boldFont, color: textColor });
 
-        // 4. ITEMS
         let hostDonationStr = "N/A";
         const hostItems = submission.itemsDonated as { item: string, quantity: number }[] | null;
         
+        // --- UPPERCASE ITEMS FOR HOST ---
         if (hostItems && hostItems.length > 0) {
             hostDonationStr = options?.includeQuantity 
-                ? hostItems.map(i => `${i.item} x${i.quantity}`).join(', ')
-                : hostItems.map(i => i.item).join(', ');
+                ? hostItems.map(i => `${i.item.toUpperCase()} x${i.quantity}`).join(', ')
+                : hostItems.map(i => i.item.toUpperCase()).join(', ');
         } else if (submission.helpedFinancially) {
             hostDonationStr = `Financial Support (Rs. ${submission.financialAmount})`;
         }
         
         const hostDonLineStartX = 1129; 
-        const hostDonLineEndX = 1800; // a clean 50px margin on the right
+        const hostDonLineEndX = 1800; 
         const hostDonMaxWidth = hostDonLineEndX - hostDonLineStartX; 
         const hostDonLineCenterItems = hostDonLineStartX + (hostDonMaxWidth / 2); 
         const hostBaselineY = 555; 
         
-        // --- DYNAMIC SIZING GATE ---
         const hostMaxItemFontSize = 38;
         const hostWrapItemFontSize = 28;
         
         const hostWidthAtMaxSize = boldFont.widthOfTextAtSize(hostDonationStr, hostMaxItemFontSize);
         
         if (hostWidthAtMaxSize <= hostDonMaxWidth) {
-            // Short list
             page.drawText(hostDonationStr, {
                 x: hostDonLineCenterItems - (hostWidthAtMaxSize / 2),
                 y: hostBaselineY,
@@ -342,7 +327,6 @@ export async function POST(req: Request) {
                 color: textColor
             });
         } else {
-            // Long list
             const hostDonationLines = wrapText(hostDonationStr, hostDonMaxWidth, boldFont, hostWrapItemFontSize);
             const hostLineHeight = 35; 
             let currentY = hostBaselineY + ((hostDonationLines.length - 1) * hostLineHeight);
@@ -366,7 +350,17 @@ export async function POST(req: Request) {
     const pdfBytes = await pdfDoc.save();
     const pdfBuffer = Buffer.from(pdfBytes);
     const safeName = applicantName ? applicantName.replace(/\s+/g, '_') : "Unknown";
-    const finalFileName = `${typeKey}_${safeName}.pdf`;
+
+    // --- FILE PREFIX MAPPER ---
+    const filePrefixMap: Record<string, string> = {
+        'DONOR': 'DONATION',
+        'VISITOR': 'VISIT',
+        'INTERN': 'INTERNSHIP',
+        'VOLUNTEER': 'VOLUNTEER',
+        'HOST': 'HOST'
+    };
+    const filePrefix = filePrefixMap[typeKey] || typeKey;
+    const finalFileName = `${filePrefix}_${safeName}.pdf`;
 
     // --- EXECUTE DRIVE UPLOAD ---
     if (options?.saveToDrive) {
@@ -378,7 +372,7 @@ export async function POST(req: Request) {
         }
     }
 
-    // --- EXECUTE EMAIL DELIVERY ---
+    // --- EMAIL DELIVERY ---
     if (options?.sendEmail && options?.targetEmail) {
         try {
             const transporter = nodemailer.createTransport({
@@ -389,10 +383,32 @@ export async function POST(req: Request) {
                 },
             });
 
-            // Format raw typeKey
-            const displayActivity = submission.certificateType 
-                ? submission.certificateType.charAt(0).toUpperCase() + submission.certificateType.slice(1).toLowerCase() 
-                : "Contribution";
+            // --- EMAIL DICTIONARY ---
+            let emailDisplayActivity = "Contribution";
+            let customSubject = "Thank you from Save The Girl! 🌸 Your Certificate Inside";
+
+            switch (typeKey) {
+                case 'DONOR':
+                    emailDisplayActivity = "Donation";
+                    customSubject = "Thank you from Save The Girl! Your Certificate of Donation Inside";
+                    break;
+                case 'HOST':
+                    emailDisplayActivity = "Hosting Partner";
+                    customSubject = "Thank you from Save The Girl! Your Certificate of Hosting Partner Inside";
+                    break;
+                case 'VISITOR':
+                    emailDisplayActivity = "Visit";
+                    customSubject = "Thank you from Save The Girl! 🌸 Your Certificate of Visit Inside";
+                    break;
+                case 'INTERN':
+                    emailDisplayActivity = "Internship";
+                    customSubject = "Thank you from Save The Girl! 🌸 Your Certificate of Internship Inside";
+                    break;
+                case 'VOLUNTEER':
+                    emailDisplayActivity = "Volunteering";
+                    customSubject = "Thank you from Save The Girl! 🌸 Your Certificate of Volunteering Inside";
+                    break;
+            }
 
             const emailHtml = `
               <div style="font-family: 'Comic Sans MS', 'Comic Sans', cursive; font-size: 14px; line-height: 1.6; color: #105691;">
@@ -402,7 +418,7 @@ export async function POST(req: Request) {
                 
                 <p>Every hand that helps and every heart that gives brings us closer to a safer, brighter future for the girls we support. We are incredibly grateful for your time, generosity, and dedication.</p>
                 
-                <p>In recognition of your support, we are pleased to share your official certificate for your <strong>${displayActivity}</strong>.</p>
+                <p>In recognition of your support, we are pleased to share your official certificate for your <strong>${emailDisplayActivity}</strong>.</p>
                 
                 <p><strong>Want to multiply your impact?</strong> Please consider sharing your certificate on your social media channels and tagging <strong>@ngosavethegirl</strong>. Inspiring others to join our cause is one of the greatest gifts you can give us!</p>
                 
@@ -422,7 +438,7 @@ export async function POST(req: Request) {
                 from: process.env.EMAIL_USER,
                 to: options.targetEmail, 
                 replyTo: "info@savegirl.org", 
-                subject: `Thank you from Save The Girl! 🌸 Your Certificate of ${displayActivity} Inside`,
+                subject: customSubject,
                 html: emailHtml,
                 attachments: [
                     {
