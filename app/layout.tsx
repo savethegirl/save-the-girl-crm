@@ -33,7 +33,7 @@ export default function RootLayout({
       lang="en"
       className={cn("h-full", "antialiased", geistSans.variable, geistMono.variable, "font-sans", inter.variable)}
     >
-      <body className="h-full flex overflow-hidden">
+      <body className="h-full flex flex-col md:flex-row overflow-hidden">
         <Providers>
           <Sidebar />
           <main className="flex-1 flex flex-col h-full overflow-y-auto">

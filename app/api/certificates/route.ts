@@ -411,7 +411,7 @@ export async function POST(req: Request) {
             }
 
             const emailHtml = `
-              <div style="font-family: 'Comic Sans MS', 'Comic Sans', cursive; font-size: 14px; line-height: 1.6; color: #105691;">
+                <div style="font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.6; color: #105691;">
                 <p>Dear <strong>${applicantName || 'Recipient'}</strong>,</p>
                 
                 <p>On behalf of the entire team at <strong>Save The Girl</strong>, we want to express our deepest gratitude for your recent association with us.</p>
