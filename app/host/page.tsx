@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/incompatible-library */
 "use client";
 
-import { useState, KeyboardEvent, useEffect, useRef } from "react";
+import { useState, KeyboardEvent, useEffect, useRef, Suspense } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { X, Plus, Loader2 } from "lucide-react";
@@ -141,7 +141,7 @@ type HostFormInputs = {
   nextExpectedVisit?: string;
 };
 
-export default function HostCertificatePage() {
+function HostForm() {
   const [emails, setEmails] = useState<string[]>([]);
   const [phones, setPhones] = useState<string[]>([]);
   const [caretakers, setCaretakers] = useState<string[]>([]);
@@ -442,5 +442,13 @@ export default function HostCertificatePage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function HostCertificatePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading form...</div>}>
+      <HostForm />
+    </Suspense>
   );
 }

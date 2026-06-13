@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/incompatible-library */
 'use client';
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -26,7 +26,7 @@ type InternFormInputs = {
   remarks: string;
 };
 
-export default function InternshipCertificatePage() {
+function InternshipForm() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [savedRecord, setSavedRecord] = useState<any>(null);
 
@@ -288,5 +288,14 @@ export default function InternshipCertificatePage() {
         </div>
       </form>
     </div>
+  );
+}
+
+
+export default function InternshipCertificatePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading form...</div>}>
+      <InternshipForm />
+    </Suspense>
   );
 }

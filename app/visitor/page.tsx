@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/incompatible-library */
 "use client";
 
-import { useState, KeyboardEvent, useEffect, useRef } from "react";
+import { useState, KeyboardEvent, useEffect, useRef, Suspense } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -147,7 +147,7 @@ type VisitorFormInputs = {
   remarks: string;
 };
 
-export default function VisitorCertificatePage() {
+function VisitorForm() {
   const searchParams = useSearchParams();
   const paramName = searchParams.get('name') || '';
   const paramPhone = searchParams.get('phone');
@@ -490,5 +490,13 @@ export default function VisitorCertificatePage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function VisitorCertificatePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading form...</div>}>
+      <VisitorForm />
+    </Suspense>
   );
 }

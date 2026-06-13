@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -25,7 +25,7 @@ type VolunteerFormInputs = {
   remarks: string;
 };
 
-export default function VolunteerCertificatePage() {
+function VolunteerForm() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [savedRecord, setSavedRecord] = useState<any>(null);
 
@@ -293,5 +293,13 @@ export default function VolunteerCertificatePage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function VolunteerCertificatePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading form...</div>}>
+      <VolunteerForm />
+    </Suspense>
   );
 }

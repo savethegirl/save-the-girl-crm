@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/incompatible-library */
 "use client";
 
-import { useState, KeyboardEvent, useEffect, useRef } from "react";
+import { useState, KeyboardEvent, useEffect, useRef, Suspense } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { X, Plus, Loader2 } from "lucide-react";
@@ -147,7 +147,7 @@ type DonorFormInputs = {
   remarks: string;
 };
 
-export default function DonationCertificatePage() {
+function DonationForm() {
   const [emails, setEmails] = useState<string[]>([]);
   const [phones, setPhones] = useState<string[]>([]);
   const [donatedItems, setDonatedItems] = useState<DonatedItem[]>([]);
@@ -479,5 +479,14 @@ export default function DonationCertificatePage() {
         </div>
       </form>
     </div>
+  );
+}
+
+
+export default function DonationCertificatePage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500">Loading form...</div>}>
+      <DonationForm />
+    </Suspense>
   );
 }
