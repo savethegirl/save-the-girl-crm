@@ -4,10 +4,10 @@
 
 import { useState, KeyboardEvent, useEffect, useRef, Suspense } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
+import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { X, Plus, Loader2 } from "lucide-react";
 import SubmissionControls from "@/modules/submissions/SubmissionControls";
-
 
 // --- SMART TAG INPUT ---
 const TagInput = ({ label, placeholder, tags, setTags, inputRef }: { label: string, placeholder: string, tags: string[], setTags: (tags: string[]) => void, inputRef: React.MutableRefObject<string> }) => {
@@ -148,6 +148,18 @@ type DonorFormInputs = {
 };
 
 function DonationForm() {
+  const searchParams = useSearchParams();
+  
+  // EXTRACT PARAMS
+  const paramName = searchParams.get('name') || '';
+  const paramPhone = searchParams.get('phone') || '';
+  const paramEmail = searchParams.get('email') || '';
+  const paramAddress = searchParams.get('address') || '';
+  const paramFb = searchParams.get('facebook') || '';
+  const paramInsta = searchParams.get('instagram') || '';
+  const paramLi = searchParams.get('linkedin') || '';
+  const paramTw = searchParams.get('twitter') || '';
+
   const [emails, setEmails] = useState<string[]>([]);
   const [phones, setPhones] = useState<string[]>([]);
   const [donatedItems, setDonatedItems] = useState<DonatedItem[]>([]);
@@ -170,6 +182,7 @@ function DonationForm() {
     handleSubmit, 
     reset, 
     watch,
+    setValue,
     formState: { isSubmitting, errors } 
   } = useForm<DonorFormInputs>({
     defaultValues: {
@@ -179,6 +192,19 @@ function DonationForm() {
       pickupChargesPaidBy: 'Donor'
     }
   });
+
+  // HYDRATE FROM URL PARAMS
+  useEffect(() => {
+    if (paramName) setValue("applicantName", paramName);
+    if (paramAddress) setValue("pickupAddress", paramAddress); 
+    if (paramFb) setValue("facebook", paramFb);
+    if (paramInsta) setValue("instagram", paramInsta);
+    if (paramLi) setValue("linkedin", paramLi);
+    if (paramTw) setValue("twitter", paramTw);
+
+    if (paramPhone) setPhones([paramPhone]);
+    if (paramEmail) setEmails([paramEmail]);
+  }, [searchParams, setValue, paramName, paramAddress, paramFb, paramInsta, paramLi, paramTw, paramPhone, paramEmail]);
 
   const currentLogistics = watch("logisticsMethod");
   const currentHelpedFinancially = watch("helpedFinancially");
@@ -481,7 +507,6 @@ function DonationForm() {
     </div>
   );
 }
-
 
 export default function DonationCertificatePage() {
   return (

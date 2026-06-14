@@ -45,7 +45,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
   const socialLinks = submission.socialLinks as Record<string, string> | null;
   const formatDate = (date: Date | null) => date ? new Date(date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : null;
 
-  // --- BUILD THE COPY URL ---
+  // --- THE COPY URL ---
   const routeMap: Record<string, string> = {
     'DONOR': '/donation',
     'HOST': '/host',
@@ -62,6 +62,14 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
   if (submission.gender) queryParams.set('gender', submission.gender);
   if (submission.universityName) queryParams.set('university', submission.universityName);
   
+  // --- NEW LINES ADDED HERE ---
+  if (submission.facilityLocation) queryParams.set('address', submission.facilityLocation);
+  if (socialLinks?.facebook) queryParams.set('facebook', socialLinks.facebook);
+  if (socialLinks?.instagram) queryParams.set('instagram', socialLinks.instagram);
+  if (socialLinks?.linkedin) queryParams.set('linkedin', socialLinks.linkedin);
+  if (socialLinks?.twitter) queryParams.set('twitter', socialLinks.twitter);
+  // ----------------------------
+
   const copyUrl = `${targetRoute}?${queryParams.toString()}`;
 
   return (

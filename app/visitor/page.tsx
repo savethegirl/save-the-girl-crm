@@ -149,12 +149,19 @@ type VisitorFormInputs = {
 
 function VisitorForm() {
   const searchParams = useSearchParams();
+  
+  // EXTRACT ALL RELEVANT DATA FROM URL
   const paramName = searchParams.get('name') || '';
-  const paramPhone = searchParams.get('phone');
-  const paramEmail = searchParams.get('email');
+  const paramPhone = searchParams.get('phone') || '';
+  const paramEmail = searchParams.get('email') || '';
+  const paramAddress = searchParams.get('address') || '';
+  const paramFb = searchParams.get('facebook') || '';
+  const paramInsta = searchParams.get('instagram') || '';
+  const paramLi = searchParams.get('linkedin') || '';
+  const paramTw = searchParams.get('twitter') || '';
 
-  const [phones, setPhones] = useState<string[]>(paramPhone ? [paramPhone] : []);
-  const [emails, setEmails] = useState<string[]>(paramEmail ? [paramEmail] : []); 
+  const [phones, setPhones] = useState<string[]>([]);
+  const [emails, setEmails] = useState<string[]>([]); 
   const [donatedItems, setDonatedItems] = useState<DonatedItem[]>([]);
   const [visitSure, setVisitSure] = useState(true);
 
@@ -175,15 +182,29 @@ function VisitorForm() {
     handleSubmit, 
     reset, 
     watch,
+    setValue,
     formState: { isSubmitting, errors } 
   } = useForm<VisitorFormInputs>({
     defaultValues: {
-      applicantName: paramName,
+      applicantName: '',
       purpose: 'General',
       helpedFinancially: 'No',
       centerVisited: '' 
     }
   });
+
+  // --- HYDRATION ---
+  useEffect(() => {
+    if (paramName) setValue("applicantName", paramName);
+    if (paramAddress) setValue("address", paramAddress);
+    if (paramFb) setValue("facebook", paramFb);
+    if (paramInsta) setValue("instagram", paramInsta);
+    if (paramLi) setValue("linkedin", paramLi);
+    if (paramTw) setValue("twitter", paramTw);
+
+    if (paramPhone) setPhones([paramPhone]);
+    if (paramEmail) setEmails([paramEmail]);
+  }, [searchParams, setValue, paramName, paramAddress, paramFb, paramInsta, paramLi, paramTw, paramPhone, paramEmail]);
 
   const currentPurpose = watch("purpose");
   const currentHelpedFinancially = watch("helpedFinancially");

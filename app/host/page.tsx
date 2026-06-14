@@ -4,6 +4,7 @@
 
 import { useState, KeyboardEvent, useEffect, useRef, Suspense } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
+import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { X, Plus, Loader2 } from "lucide-react";
 import SubmissionControls from "@/modules/submissions/SubmissionControls";
@@ -142,6 +143,14 @@ type HostFormInputs = {
 };
 
 function HostForm() {
+  const searchParams = useSearchParams();
+  
+  // EXTRACT PARAMS
+  const paramName = searchParams.get('name') || '';
+  const paramPhone = searchParams.get('phone') || '';
+  const paramEmail = searchParams.get('email') || '';
+  const paramAddress = searchParams.get('address') || '';
+
   const [emails, setEmails] = useState<string[]>([]);
   const [phones, setPhones] = useState<string[]>([]);
   const [caretakers, setCaretakers] = useState<string[]>([]);
@@ -166,6 +175,7 @@ function HostForm() {
     handleSubmit, 
     reset, 
     watch,
+    setValue,
     formState: { isSubmitting, errors } 
   } = useForm<HostFormInputs>({
     defaultValues: {
@@ -173,6 +183,15 @@ function HostForm() {
       centerVisited: '' 
     }
   });
+
+  // HYDRATE FROM URL PARAMS
+  useEffect(() => {
+    if (paramName) setValue("applicantName", paramName);
+    if (paramAddress) setValue("facilityLocation", paramAddress); 
+
+    if (paramPhone) setPhones([paramPhone]);
+    if (paramEmail) setEmails([paramEmail]);
+  }, [searchParams, setValue, paramName, paramAddress, paramPhone, paramEmail]);
 
   const currentHelpedFinancially = watch("helpedFinancially");
 
