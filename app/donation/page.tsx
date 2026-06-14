@@ -159,6 +159,7 @@ function DonationForm() {
   const paramInsta = searchParams.get('instagram') || '';
   const paramLi = searchParams.get('linkedin') || '';
   const paramTw = searchParams.get('twitter') || '';
+  const paramItems = searchParams.get('items'); // <--- Extract items
 
   const [emails, setEmails] = useState<string[]>([]);
   const [phones, setPhones] = useState<string[]>([]);
@@ -204,7 +205,18 @@ function DonationForm() {
 
     if (paramPhone) setPhones([paramPhone]);
     if (paramEmail) setEmails([paramEmail]);
-  }, [searchParams, setValue, paramName, paramAddress, paramFb, paramInsta, paramLi, paramTw, paramPhone, paramEmail]);
+
+    if (paramItems) {
+      try {
+        const parsedItems = JSON.parse(paramItems);
+        if (Array.isArray(parsedItems) && parsedItems.length > 0) {
+          setDonatedItems(parsedItems);
+        }
+      } catch (e) {
+        console.error("Failed to parse items from URL", e);
+      }
+    }
+  }, [searchParams, setValue, paramName, paramAddress, paramFb, paramInsta, paramLi, paramTw, paramPhone, paramEmail, paramItems]);
 
   const currentLogistics = watch("logisticsMethod");
   const currentHelpedFinancially = watch("helpedFinancially");

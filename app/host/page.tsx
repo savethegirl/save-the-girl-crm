@@ -150,6 +150,7 @@ function HostForm() {
   const paramPhone = searchParams.get('phone') || '';
   const paramEmail = searchParams.get('email') || '';
   const paramAddress = searchParams.get('address') || '';
+  const paramItems = searchParams.get('items'); // <--- Extract items
 
   const [emails, setEmails] = useState<string[]>([]);
   const [phones, setPhones] = useState<string[]>([]);
@@ -184,14 +185,25 @@ function HostForm() {
     }
   });
 
-  // HYDRATE FROM URL PARAMS
+  // HYDRATE 
   useEffect(() => {
     if (paramName) setValue("applicantName", paramName);
     if (paramAddress) setValue("facilityLocation", paramAddress); 
 
     if (paramPhone) setPhones([paramPhone]);
     if (paramEmail) setEmails([paramEmail]);
-  }, [searchParams, setValue, paramName, paramAddress, paramPhone, paramEmail]);
+
+    if (paramItems) {
+      try {
+        const parsedItems = JSON.parse(paramItems);
+        if (Array.isArray(parsedItems) && parsedItems.length > 0) {
+          setDonatedItems(parsedItems);
+        }
+      } catch (e) {
+        console.error("Failed to parse items from URL", e);
+      }
+    }
+  }, [searchParams, setValue, paramName, paramAddress, paramPhone, paramEmail, paramItems]);
 
   const currentHelpedFinancially = watch("helpedFinancially");
 
