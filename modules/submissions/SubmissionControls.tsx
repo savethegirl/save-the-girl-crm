@@ -10,7 +10,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -167,6 +166,7 @@ export default function SubmissionControls({
     }
   };
 
+  // Extract Modal Content so we don't repeat it
   const ModalContent = (
     <DialogContent className="sm:max-w-106.25">
       <DialogHeader>
@@ -258,30 +258,29 @@ export default function SubmissionControls({
       </div>
 
       {/* FOOTER */}
-      <DialogFooter className="flex flex-col sm:flex-row sm:justify-between w-full gap-3 sm:gap-0 mt-4">
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-between w-full gap-3 mt-4 pt-2">
         <Button 
           type="button" 
           variant="ghost" 
           onClick={() => router.push('/')} 
-          className="text-slate-500 hover:text-slate-700 w-full sm:w-auto order-3 sm:order-1"
+          className="text-slate-500 hover:text-slate-700 w-full sm:w-auto"
         >
           Go to Dashboard
         </Button>
         
-        {/* Right side on desktop, top on mobile */}
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto order-1 sm:order-2">
+        <div className="flex flex-col-reverse sm:flex-row gap-3 w-full sm:w-auto">
           <Button 
             variant="outline" 
             onClick={() => handleModalOpenChange(false)} 
             disabled={isGenerating}
-            className="w-full sm:w-auto order-2 sm:order-1"
+            className="w-full sm:w-auto"
           >
             Cancel
           </Button>
           <Button 
             onClick={handleGenerateCertificate} 
             disabled={isGenerating || (!saveLocally && !saveToDrive && !sendEmail)} 
-            className="bg-blue-600 w-full sm:min-w-35 order-1 sm:order-2"
+            className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto sm:min-w-[150px]"
           >
             {isGenerating ? (
               <>
@@ -293,7 +292,7 @@ export default function SubmissionControls({
             )}
           </Button>
         </div>
-      </DialogFooter>
+      </div>
     </DialogContent>
   );
 
