@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable react-hooks/incompatible-library */
 "use client";
@@ -6,7 +7,7 @@ import { useState, KeyboardEvent, useEffect, useRef, Suspense } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { X, Plus, Loader2 } from "lucide-react";
+import { X, Plus, Loader2, Save } from "lucide-react";
 import SubmissionControls from "@/modules/submissions/SubmissionControls";
 
 // --- SMART TAG INPUT ---
@@ -133,7 +134,6 @@ const KeyValueInput = ({ items, setItems, nameRef, qtyRef }: { items: DonatedIte
 
 
 // --- MAIN PAGE ---
-
 type VisitorFormInputs = {
   applicantName: string;
   visitDate: string;
@@ -157,6 +157,7 @@ function VisitorForm() {
   const searchParams = useSearchParams();
   
   // EXTRACT ALL RELEVANT DATA FROM URL
+  const editId = searchParams.get('editId');
   const paramName = searchParams.get('name') || '';
   const paramPhone = searchParams.get('phone') || '';
   const paramEmail = searchParams.get('email') || '';
@@ -165,14 +166,14 @@ function VisitorForm() {
   const paramInsta = searchParams.get('instagram') || '';
   const paramLi = searchParams.get('linkedin') || '';
   const paramTw = searchParams.get('twitter') || '';
-  const paramItems = searchParams.get('items'); // <--- Extract items
+  const paramItems = searchParams.get('items'); 
 
   const [phones, setPhones] = useState<string[]>([]);
   const [emails, setEmails] = useState<string[]>([]); 
   const [donatedItems, setDonatedItems] = useState<DonatedItem[]>([]);
   const [visitSure, setVisitSure] = useState(true);
+  const [isFetchingEdit, setIsFetchingEdit] = useState(!!editId);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [savedRecord, setSavedRecord] = useState<any>(null);
 
   // Auto-Save Refs
@@ -200,29 +201,84 @@ function VisitorForm() {
     }
   });
 
-  // --- HYDRATION ---
+  // --- HYDRATION (COPY) ---
   useEffect(() => {
-    if (paramName) setValue("applicantName", paramName);
-    if (paramAddress) setValue("address", paramAddress);
-    if (paramFb) setValue("facebook", paramFb);
-    if (paramInsta) setValue("instagram", paramInsta);
-    if (paramLi) setValue("linkedin", paramLi);
-    if (paramTw) setValue("twitter", paramTw);
-
-    if (paramPhone) setPhones([paramPhone]);
-    if (paramEmail) setEmails([paramEmail]);
-
-    if (paramItems) {
-      try {
-        const parsedItems = JSON.parse(paramItems);
-        if (Array.isArray(parsedItems) && parsedItems.length > 0) {
-          setDonatedItems(parsedItems);
-        }
-      } catch (e) {
-        console.error("Failed to parse items from URL", e);
+    if (!editId) {
+      if (paramName) setValue("applicantName", paramName);
+      if (paramAddress) setValue("address", paramAddress);
+      if (paramFb) setValue("facebook", paramFb);
+      if (paramInsta) setValue("instagram", paramInsta);
+      if (paramLi) setValue("linkedin", paramLi);
+      if (paramTw) setValue("twitter", paramTw);
+      if (paramPhone) setPhones([paramPhone]);
+      if (paramEmail) setEmails([paramEmail]);
+      if (paramItems) {
+        try {
+          const parsedItems = JSON.parse(paramItems);
+          if (Array.isArray(parsedItems) && parsedItems.length > 0) {
+            setDonatedItems(parsedItems);
+          }
+        } catch (e) { console.error(e) }
       }
     }
-  }, [searchParams, setValue, paramName, paramAddress, paramFb, paramInsta, paramLi, paramTw, paramPhone, paramEmail, paramItems]);
+  }, [editId, searchParams, setValue, paramName, paramAddress, paramFb, paramInsta, paramLi, paramTw, paramPhone, paramEmail, paramItems]);
+
+  // --- HYDRATION (EDIT) ---
+  useEffect(() => {
+    if (editId) {
+      const fetchRecordToEdit = async () => {
+        try {
+          const res = await fetch(`/api/submissions?id=${editId}`);
+          const json = await res.json();
+          if (json.success && json.data) {
+            const d = json.data;
+            setValue("applicantName", d.applicantName || "");
+            if (d.visitDate) setValue("visitDate", new Date(d.visitDate).toISOString().split('T')[0]);
+            setValue("centerVisited", d.centerVisited || "");
+            setValue("attendantName", d.attendantName || "");
+            setValue("address", d.facilityLocation || "");
+            
+            const standardPurposes = ["Birthday Celebration", "Corporate CSR", "Family Event", "General"];
+            if (d.purposeOfVisit && !standardPurposes.includes(d.purposeOfVisit)) {
+              setValue("purpose", "Other");
+              setValue("otherPurpose", d.purposeOfVisit);
+            } else {
+              setValue("purpose", d.purposeOfVisit || "General");
+            }
+
+            setValue("helpedFinancially", d.helpedFinancially ? 'Yes' : 'No');
+            if (d.financialAmount) setValue("financialAmount", String(d.financialAmount));
+            if (d.nextFollowUpDue) {
+              setValue("nextFollowUpDue", new Date(d.nextFollowUpDue).toISOString().split('T')[0]);
+              setVisitSure(true);
+            } else {
+              setVisitSure(false);
+            }
+            setValue("photosLink", d.uploadPhotosLink || "");
+            setValue("remarks", d.additionalRemarks || "");
+            
+            if (d.socialLinks) {
+              setValue("facebook", (d.socialLinks as any).facebook || "");
+              setValue("instagram", (d.socialLinks as any).instagram || "");
+              setValue("linkedin", (d.socialLinks as any).linkedin || "");
+              setValue("twitter", (d.socialLinks as any).twitter || "");
+            }
+            
+            setPhones(d.phones || []);
+            setEmails(d.emails || []);
+            if (d.itemsDonated) setDonatedItems(d.itemsDonated);
+          } else {
+            toast.error("Could not load record for editing.");
+          }
+        } catch (err) {
+          toast.error("Network error loading record.");
+        } finally {
+          setIsFetchingEdit(false);
+        }
+      };
+      fetchRecordToEdit();
+    }
+  }, [editId, setValue]);
 
   const currentPurpose = watch("purpose");
   const currentHelpedFinancially = watch("helpedFinancially");
@@ -262,12 +318,12 @@ function VisitorForm() {
       return;
     }
 
-    const toastId = toast.loading("Saving visitor data...");
+    const toastId = toast.loading(editId ? "Updating record..." : "Saving visitor data...");
 
-    const payload = {
+    const payload: any = {
       applicantName: data.applicantName,
       certificateType: 'VISITOR',
-      visitDate: data.visitDate,
+      visitDate: new Date(data.visitDate).toISOString(),
       centerVisited: data.centerVisited,
       attendantName: data.attendantName,
       phones: finalPhones,
@@ -277,8 +333,8 @@ function VisitorForm() {
       itemsDonated: finalItems.length > 0 ? finalItems : null,
       uploadPhotosLink: data.photosLink,
       helpedFinancially: data.helpedFinancially === 'Yes',
-      financialAmount: data.financialAmount,
-      nextFollowUpDue: visitSure ? data.nextFollowUpDue : null,
+      financialAmount: data.financialAmount ? parseFloat(data.financialAmount) : null,
+      nextFollowUpDue: (visitSure && data.nextFollowUpDue) ? new Date(data.nextFollowUpDue).toISOString() : null,
       additionalRemarks: data.remarks,
       socialLinks: {
         facebook: data.facebook,
@@ -288,9 +344,11 @@ function VisitorForm() {
       }
     };
 
+    if (editId) payload.id = editId;
+
     try {
       const response = await fetch('/api/submissions', {
-        method: 'POST',
+        method: editId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -298,11 +356,13 @@ function VisitorForm() {
       const json = await response.json();
 
       if (response.ok) {
-        toast.success("Visitor data saved successfully!", { id: toastId });
+        toast.success(editId ? "Record updated successfully!" : "Visitor data saved successfully!", { id: toastId });
         setSavedRecord(json.data); 
-        reset();
-        setPhones([]); setEmails([]); setDonatedItems([]); setVisitSure(true);
-        pendingPhone.current = ""; pendingEmail.current = ""; pendingItemName.current = ""; pendingItemQty.current = "";
+        if (!editId) {
+          reset();
+          setPhones([]); setEmails([]); setDonatedItems([]); setVisitSure(true);
+          pendingPhone.current = ""; pendingEmail.current = ""; pendingItemName.current = ""; pendingItemQty.current = "";
+        }
       } else {
         toast.error(`Failed to save: ${json.error || 'Unknown error'}`, { id: toastId });
       }
@@ -311,26 +371,34 @@ function VisitorForm() {
     }
   };
 
+  if (isFetchingEdit) {
+    return <div className="p-12 text-center text-slate-500 flex flex-col items-center"><Loader2 className="h-8 w-8 animate-spin mb-4 text-blue-500" /> Loading record data...</div>;
+  }
+
   return (
     <div className="p-8 w-full max-w-4xl mx-auto bg-slate-50 min-h-screen text-slate-900">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-900">Visitor Certificate Form</h2>
-        <p className="text-sm text-slate-500">Log a facility visit and generate a Certification of Appreciation.</p>
+        <h2 className="text-2xl font-bold text-slate-900">
+          {editId ? "Edit Visitor Record" : "Visitor Certificate Form"}
+        </h2>
+        <p className="text-sm text-slate-500">
+          {editId ? "Update the details for this record below." : "Log a facility visit and generate a Certification of Appreciation."}
+        </p>
       </div>
 
       {savedRecord && (
-              <SubmissionControls 
-                id={savedRecord.id}
-                currentStatus={savedRecord.status}
-                applicantName={savedRecord.applicantName}
-                certificateType={savedRecord.certificateType}
-                applicantEmail={savedRecord.emails?.[0]} 
-                hideStatusToggle={true} 
-                hideTriggerButton={true}  
-                autoOpenModal={true}        
-                onCloseModal={() => setSavedRecord(null)}
-              />
-            )}
+        <SubmissionControls 
+          id={savedRecord.id}
+          currentStatus={savedRecord.status}
+          applicantName={savedRecord.applicantName}
+          certificateType={savedRecord.certificateType}
+          applicantEmail={savedRecord.emails?.[0]} 
+          hideStatusToggle={true} 
+          hideTriggerButton={true}  
+          autoOpenModal={true}        
+          onCloseModal={() => setSavedRecord(null)}
+        />
+      )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-8 rounded-lg border border-slate-200 shadow-sm space-y-8">
         
@@ -512,19 +580,21 @@ function VisitorForm() {
         </div>
 
         <div className="pt-4 flex justify-end gap-4">
-          <button 
-            type="button" 
-            onClick={() => { reset(); setPhones([]); setEmails([]); setDonatedItems([]); setVisitSure(true); }}
-            className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
-          >
-            Clear
-          </button>
+          {!editId && (
+            <button 
+              type="button" 
+              onClick={() => { reset(); setPhones([]); setEmails([]); setDonatedItems([]); setVisitSure(true); }}
+              className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            >
+              Clear
+            </button>
+          )}
           <button 
             type="submit" 
             disabled={isSubmitting || isLoadingCenters} 
-            className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+            className={`px-6 py-2.5 text-sm font-medium text-white rounded-md transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2 ${editId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
-            {isSubmitting ? 'Saving...' : 'Save Visitor Data'}
+            {isSubmitting ? 'Processing...' : (editId ? <><Save className="w-4 h-4" /> Update Record</> : 'Save Visitor Data')}
           </button>
         </div>
       </form>

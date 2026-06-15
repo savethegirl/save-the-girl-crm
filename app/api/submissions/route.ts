@@ -76,7 +76,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   // HARD LOCK: Must be logged in (Staff or Admin) to view submissions
   const session = await getServerSession(authOptions);
   if (!session) {
@@ -84,6 +84,17 @@ export async function GET() {
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    // If an ID is provided, fetch just that one record : EDIT FORM Feat
+    if (id) {
+      const record = await prisma.submission.findUnique({ where: { id } });
+      if (!record) return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
+      return NextResponse.json({ success: true, data: record }, { status: 200 });
+    }
+
+    // Otherwise, fetch all of them for the Dashboard
     const submissions = await prisma.submission.findMany({
       orderBy: { createdAt: 'desc' }
     });
@@ -95,6 +106,32 @@ export async function GET() {
       { success: false, error: error.message || "Failed to fetch submissions" }, 
       { status: 500 }
     );
+  }
+}
+
+export async function PUT(request: Request) {
+  // HARD LOCK: Must be logged in
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized access" }, { status: 401 });
+  }
+
+  try {
+    const body = await request.json();
+    const { id, ...updateData } = body; // Separate the ID from the rest of the data
+
+    if (!id) return NextResponse.json({ success: false, error: "Missing ID for update" }, { status: 400 });
+
+    // Overwrite the existing record with the new data
+    const updatedRecord = await prisma.submission.update({
+      where: { id },
+      data: updateData,
+    });
+
+    return NextResponse.json({ success: true, data: updatedRecord });
+  } catch (error: any) {
+    console.error("Update Error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
 

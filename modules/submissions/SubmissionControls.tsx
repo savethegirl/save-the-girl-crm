@@ -258,30 +258,51 @@ export default function SubmissionControls({
         </div>
       </div>
 
-      <DialogFooter>
-        <Button variant="outline" onClick={() => handleModalOpenChange(false)} disabled={isGenerating}>Cancel</Button>
-        <Button onClick={handleGenerateCertificate} disabled={isGenerating || (!saveLocally && !saveToDrive && !sendEmail)} className="bg-blue-600 min-w-35">
-          {isGenerating ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Processing
-            </>
-          ) : (
-            "Confirm & Process"
-          )}
+      <DialogFooter className="sm:justify-between w-full">
+        <Button 
+          type="button" 
+          variant="ghost" 
+          onClick={() => router.push('/')} 
+          className="text-slate-500 hover:text-slate-700 hidden sm:flex"
+        >
+          Go to Dashboard
         </Button>
+        <div className="flex gap-2 w-full sm:w-auto justify-end">
+          <Button variant="outline" onClick={() => handleModalOpenChange(false)} disabled={isGenerating}>Cancel</Button>
+          <Button onClick={handleGenerateCertificate} disabled={isGenerating || (!saveLocally && !saveToDrive && !sendEmail)} className="bg-blue-600 min-w-35">
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Processing
+              </>
+            ) : (
+              "Confirm & Process"
+            )}
+          </Button>
+        </div>
       </DialogFooter>
     </DialogContent>
   );
 
+  // --- SUCCESS BANNER RENDER ---
   if (hideStatusToggle && hideTriggerButton) {
     return (
-      <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
-        {status === 'APPROVED' && ModalContent}
-      </Dialog>
+      <div className="mt-4 flex flex-wrap gap-3">
+        <Button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+          <FileBadge className="h-4 w-4" />
+          Open Generator
+        </Button>
+        <Button variant="outline" onClick={() => router.push('/')} className="bg-white border-slate-300 text-slate-700 hover:bg-slate-50">
+          Go to Dashboard
+        </Button>
+        <Dialog open={isModalOpen} onOpenChange={handleModalOpenChange}>
+          {status === 'APPROVED' && ModalContent}
+        </Dialog>
+      </div>
     );
   }
 
+  // --- STANDARD RENDER ---
   return (
     <div className="flex flex-wrap items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
       {!hideStatusToggle && (

@@ -1,9 +1,11 @@
+/* eslint-disable react-hooks/incompatible-library */
 'use client';
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { Loader2, Save } from "lucide-react";
 import SubmissionControls from "@/modules/submissions/SubmissionControls";
 
 type VolunteerFormInputs = {
@@ -30,12 +32,15 @@ function VolunteerForm() {
   const [savedRecord, setSavedRecord] = useState<any>(null);
 
   const searchParams = useSearchParams();
+  const editId = searchParams.get('editId');
+  const [isFetchingEdit, setIsFetchingEdit] = useState(!!editId);
 
   const { 
     register, 
     handleSubmit, 
     reset, 
     watch,
+    setValue,
     formState: { isSubmitting, errors } 
   } = useForm<VolunteerFormInputs>({
     defaultValues: {
@@ -48,29 +53,90 @@ function VolunteerForm() {
     }
   });
 
-  // eslint-disable-next-line react-hooks/incompatible-library
+  // HYDRATE FROM DB (EDIT)
+  useEffect(() => {
+    if (editId) {
+      const fetchRecordToEdit = async () => {
+        try {
+          const res = await fetch(`/api/submissions?id=${editId}`);
+          const json = await res.json();
+          if (json.success && json.data) {
+            const d = json.data;
+            setValue("applicantName", d.applicantName || "");
+            setValue("email", d.emails?.[0] || "");
+            setValue("phone", d.phones?.[0] || "");
+            setValue("gender", d.gender || "Male");
+            if (d.startDate) setValue("startDate", new Date(d.startDate).toISOString().split('T')[0]);
+            if (d.endDate) setValue("endDate", new Date(d.endDate).toISOString().split('T')[0]);
+            setValue("mode", d.mode || "VIRTUAL");
+            setValue("postRole", d.postRole || "");
+            setValue("scheduleType", d.scheduleType || "DAILY");
+            setValue("isUniversityRequirement", String(!!d.isUniversityRequirement));
+            setValue("universityName", d.universityName || "");
+            setValue("donationType", d.donationType || "No");
+            if (d.financialAmount) setValue("financialAmount", String(d.financialAmount));
+            if (d.rating) setValue("rating", String(d.rating));
+            setValue("photosLink", d.uploadPhotosLink || "");
+            setValue("remarks", d.additionalRemarks || "");
+          } else {
+            toast.error("Could not load record for editing.");
+          }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (err: any) {
+          toast.error("Network error loading record.");
+          console.error(err);
+        } finally {
+          setIsFetchingEdit(false);
+        }
+      };
+      fetchRecordToEdit();
+    }
+  }, [editId, setValue]);
+
   const currentDonationType = watch("donationType");
 
   const onSubmit: SubmitHandler<VolunteerFormInputs> = async (data) => {
-    const toastId = toast.loading("Saving volunteer data...");
+    const toastId = toast.loading(editId ? "Updating record..." : "Saving volunteer data...");
     setSavedRecord(null);
+
+    // Map strictly to the DB structure
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: any = {
+      applicantName: data.applicantName,
+      certificateType: 'VOLUNTEER', 
+      emails: data.email ? [data.email] : [],
+      phones: data.phone ? [data.phone] : [],
+      gender: data.gender,
+      startDate: new Date(data.startDate).toISOString(),
+      endDate: new Date(data.endDate).toISOString(),
+      mode: data.mode,
+      postRole: data.postRole,
+      scheduleType: data.scheduleType,
+      isUniversityRequirement: data.isUniversityRequirement === "true",
+      universityName: data.universityName,
+      donationType: data.donationType,
+      helpedFinancially: data.donationType === "Financial" || data.donationType === "Both",
+      financialAmount: data.financialAmount ? parseFloat(data.financialAmount) : null,
+      rating: parseInt(data.rating),
+      uploadPhotosLink: data.photosLink,
+      additionalRemarks: data.remarks
+    };
+
+    if (editId) payload.id = editId;
 
     try {
       const response = await fetch('/api/submissions', {
-        method: 'POST',
+        method: editId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          certificateType: 'VOLUNTEER', 
-        }),
+        body: JSON.stringify(payload),
       });
 
       const json = await response.json();
 
       if (response.ok) {
-        toast.success("Volunteer data saved successfully!", { id: toastId });
+        toast.success(editId ? "Record updated successfully!" : "Volunteer data saved successfully!", { id: toastId });
         setSavedRecord(json.data); 
-        reset(); 
+        if (!editId) reset(); 
       } else {
         toast.error(`Failed to save: ${json.error || 'Unknown error'}`, { id: toastId });
       }
@@ -80,17 +146,25 @@ function VolunteerForm() {
     }
   };
 
+  if (isFetchingEdit) {
+    return <div className="p-12 text-center text-slate-500 flex flex-col items-center"><Loader2 className="h-8 w-8 animate-spin mb-4 text-blue-500" /> Loading record data...</div>;
+  }
+
   return (
     <div className="p-8 w-full max-w-4xl mx-auto bg-slate-50 min-h-screen text-slate-900">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-900">Volunteer Certificate Form</h2>
-        <p className="text-sm text-slate-500">Fill in the volunteer details to generate their completion certificate.</p>
+        <h2 className="text-2xl font-bold text-slate-900">
+          {editId ? "Edit Volunteer Record" : "Volunteer Certificate Form"}
+        </h2>
+        <p className="text-sm text-slate-500">
+          {editId ? "Update the details for this record below." : "Fill in the volunteer details to generate their completion certificate."}
+        </p>
       </div>
 
       {savedRecord && (
         <div className="mb-8 p-6 bg-blue-50 border border-blue-200 rounded-lg animate-in fade-in slide-in-from-top-4">
           <h3 className="text-lg font-semibold text-blue-900 mb-2">Record Saved Successfully!</h3>
-          <p className="text-sm text-blue-800 mb-4">You can now generate and send the certificate directly from here, or fill the form again to add another record.</p>
+          <p className="text-sm text-blue-800 mb-4">You can now generate and send the certificate directly from here, or close to view the record.</p>
           <SubmissionControls 
             id={savedRecord.id}
             currentStatus={savedRecord.status}
@@ -240,7 +314,6 @@ function VolunteerForm() {
             </div>
           </div>
 
-          {/* Conditional Rendering for Financial Amount */}
           {(currentDonationType === 'Financial' || currentDonationType === 'Both') && (
             <div className="space-y-2 p-4 bg-blue-50 border border-blue-100 rounded-md">
               <label className="text-sm font-medium text-blue-900">Financial Amount (₹)<span className="text-red-500 ml-1">*</span></label>
@@ -275,20 +348,22 @@ function VolunteerForm() {
 
         {/* Form Actions */}
         <div className="mt-8 pt-6 border-t border-slate-200 flex justify-end gap-4">
-          <button 
-            type="button" 
-            onClick={() => reset()} 
-            className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
-          >
-            Clear
-          </button>
+          {!editId && (
+            <button 
+              type="button" 
+              onClick={() => reset()} 
+              className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            >
+              Clear
+            </button>
+          )}
           
           <button 
             type="submit" 
             disabled={isSubmitting} 
-            className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+            className={`px-6 py-2.5 text-sm font-medium text-white rounded-md transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2 ${editId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
-            {isSubmitting ? 'Saving...' : 'Save Volunteer Data'}
+            {isSubmitting ? 'Processing...' : (editId ? <><Save className="w-4 h-4" /> Update Record</> : 'Save Volunteer Data')}
           </button>
         </div>
       </form>

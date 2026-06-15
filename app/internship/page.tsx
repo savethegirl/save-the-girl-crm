@@ -1,10 +1,11 @@
 /* eslint-disable react-hooks/incompatible-library */
 'use client';
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { Loader2, Save } from "lucide-react";
 import SubmissionControls from "@/modules/submissions/SubmissionControls";
 
 type InternFormInputs = {
@@ -31,12 +32,15 @@ function InternshipForm() {
   const [savedRecord, setSavedRecord] = useState<any>(null);
 
   const searchParams = useSearchParams();
+  const editId = searchParams.get('editId');
+  const [isFetchingEdit, setIsFetchingEdit] = useState(!!editId);
   
   const { 
     register, 
     handleSubmit, 
     reset, 
     watch,
+    setValue,
     formState: { isSubmitting, errors } 
   } = useForm<InternFormInputs>({
     defaultValues: {
@@ -49,28 +53,90 @@ function InternshipForm() {
     }
   });
 
+  // HYDRATE FROM DB (EDIT)
+  useEffect(() => {
+    if (editId) {
+      const fetchRecordToEdit = async () => {
+        try {
+          const res = await fetch(`/api/submissions?id=${editId}`);
+          const json = await res.json();
+          if (json.success && json.data) {
+            const d = json.data;
+            setValue("applicantName", d.applicantName || "");
+            setValue("email", d.emails?.[0] || "");
+            setValue("phone", d.phones?.[0] || "");
+            setValue("gender", d.gender || "Male");
+            if (d.startDate) setValue("startDate", new Date(d.startDate).toISOString().split('T')[0]);
+            if (d.endDate) setValue("endDate", new Date(d.endDate).toISOString().split('T')[0]);
+            setValue("mode", d.mode || "VIRTUAL");
+            setValue("postRole", d.postRole || "");
+            setValue("scheduleType", d.scheduleType || "DAILY");
+            setValue("isUniversityRequirement", String(!!d.isUniversityRequirement));
+            setValue("universityName", d.universityName || "");
+            setValue("donationType", d.donationType || "No");
+            if (d.financialAmount) setValue("financialAmount", String(d.financialAmount));
+            if (d.rating) setValue("rating", String(d.rating));
+            setValue("photosLink", d.uploadPhotosLink || "");
+            setValue("remarks", d.additionalRemarks || "");
+          } else {
+            toast.error("Could not load record for editing.");
+          }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } catch (err: any) {
+          toast.error("Network error loading record.");
+          console.error(err);
+        } finally {
+          setIsFetchingEdit(false);
+        }
+      };
+      fetchRecordToEdit();
+    }
+  }, [editId, setValue]);
+
   const currentDonationType = watch("donationType");
 
   const onSubmit: SubmitHandler<InternFormInputs> = async (data) => {
-    const toastId = toast.loading("Saving intern data...");
+    const toastId = toast.loading(editId ? "Updating record..." : "Saving intern data...");
     setSavedRecord(null);
+
+    // Map strictly to the DB structure
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: any = {
+      applicantName: data.applicantName,
+      certificateType: 'INTERN', 
+      emails: data.email ? [data.email] : [],
+      phones: data.phone ? [data.phone] : [],
+      gender: data.gender,
+      startDate: new Date(data.startDate).toISOString(),
+      endDate: new Date(data.endDate).toISOString(),
+      mode: data.mode,
+      postRole: data.postRole,
+      scheduleType: data.scheduleType,
+      isUniversityRequirement: data.isUniversityRequirement === "true",
+      universityName: data.universityName,
+      donationType: data.donationType,
+      helpedFinancially: data.donationType === "Financial" || data.donationType === "Both",
+      financialAmount: data.financialAmount ? parseFloat(data.financialAmount) : null,
+      rating: parseInt(data.rating),
+      uploadPhotosLink: data.photosLink,
+      additionalRemarks: data.remarks
+    };
+
+    if (editId) payload.id = editId;
 
     try {
       const response = await fetch('/api/submissions', {
-        method: 'POST',
+        method: editId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...data,
-          certificateType: 'INTERN', 
-        }),
+        body: JSON.stringify(payload),
       });
 
       const json = await response.json();
 
       if (response.ok) {
-        toast.success("Intern data saved successfully!", { id: toastId });
+        toast.success(editId ? "Record updated successfully!" : "Intern data saved successfully!", { id: toastId });
         setSavedRecord(json.data); 
-        reset(); 
+        if (!editId) reset(); 
       } else {
         toast.error(`Failed to save: ${json.error || 'Unknown error'}`, { id: toastId });
       }
@@ -80,11 +146,19 @@ function InternshipForm() {
     }
   };
 
+  if (isFetchingEdit) {
+    return <div className="p-12 text-center text-slate-500 flex flex-col items-center"><Loader2 className="h-8 w-8 animate-spin mb-4 text-blue-500" /> Loading record data...</div>;
+  }
+
   return (
     <div className="p-8 w-full max-w-4xl mx-auto bg-slate-50 min-h-screen text-slate-900">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-900">Internship Certificate Form</h2>
-        <p className="text-sm text-slate-500">Fill in the student details to generate their completion certificate.</p>
+        <h2 className="text-2xl font-bold text-slate-900">
+          {editId ? "Edit Internship Record" : "Internship Certificate Form"}
+        </h2>
+        <p className="text-sm text-slate-500">
+          {editId ? "Update the details for this record below." : "Fill in the student details to generate their completion certificate."}
+        </p>
       </div>
 
       {savedRecord && (
@@ -270,27 +344,28 @@ function InternshipForm() {
 
         {/* Form Actions */}
         <div className="mt-8 pt-6 border-t border-slate-200 flex justify-end gap-4">
-          <button 
-            type="button" 
-            onClick={() => reset()} 
-            className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
-          >
-            Clear
-          </button>
+          {!editId && (
+            <button 
+              type="button" 
+              onClick={() => reset()} 
+              className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            >
+              Clear
+            </button>
+          )}
           
           <button 
             type="submit" 
             disabled={isSubmitting} 
-            className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+            className={`px-6 py-2.5 text-sm font-medium text-white rounded-md transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2 ${editId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
-            {isSubmitting ? 'Saving...' : 'Save Intern Data'}
+            {isSubmitting ? 'Processing...' : (editId ? <><Save className="w-4 h-4" /> Update Record</> : 'Save Intern Data')}
           </button>
         </div>
       </form>
     </div>
   );
 }
-
 
 export default function InternshipCertificatePage() {
   return (

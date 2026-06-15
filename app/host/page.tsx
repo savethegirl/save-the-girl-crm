@@ -6,7 +6,7 @@ import { useState, KeyboardEvent, useEffect, useRef, Suspense } from "react";
 import { useForm, SubmitHandler } from 'react-hook-form';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { X, Plus, Loader2 } from "lucide-react";
+import { X, Plus, Loader2, Save } from "lucide-react";
 import SubmissionControls from "@/modules/submissions/SubmissionControls";
 
 // --- SMART TAG INPUT ---
@@ -62,6 +62,7 @@ const TagInput = ({ label, placeholder, tags, setTags, inputRef }: { label: stri
 
 type DonatedItem = { item: string; quantity: number };
 
+// --- KEY VALUE INPUT ---
 const KeyValueInput = ({ items, setItems, nameRef, qtyRef }: { items: DonatedItem[], setItems: (items: DonatedItem[]) => void, nameRef: React.MutableRefObject<string>, qtyRef: React.MutableRefObject<string> }) => {
   const [itemName, setItemName] = useState("");
   const [itemQty, setItemQty] = useState("");
@@ -85,7 +86,6 @@ const KeyValueInput = ({ items, setItems, nameRef, qtyRef }: { items: DonatedIte
     <div className="space-y-2">
       <label className="text-sm font-medium text-slate-700">Items Donated (Optional)</label>
       <div className="p-4 border border-slate-300 rounded-md bg-slate-50 space-y-4">
-        
         <div className="flex flex-col sm:flex-row gap-2">
           <input 
             type="text" 
@@ -94,7 +94,6 @@ const KeyValueInput = ({ items, setItems, nameRef, qtyRef }: { items: DonatedIte
             placeholder="Item name (e.g. Books, Clothes)" 
             className="flex-1 p-2 text-sm border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500"
           />
-          
           <div className="flex gap-2 w-full sm:w-auto">
             <input 
               type="number" 
@@ -132,7 +131,6 @@ const KeyValueInput = ({ items, setItems, nameRef, qtyRef }: { items: DonatedIte
 };
 
 // --- MAIN COMPONENT ---
-
 type HostFormInputs = {
   applicantName: string;
   eventDate: string;
@@ -150,18 +148,21 @@ type HostFormInputs = {
 function HostForm() {
   const searchParams = useSearchParams();
   
-  // EXTRACT PARAMS
+  // EXTRACT PARAMS (For Copy & Edit)
+  const editId = searchParams.get('editId'); // <-- THE NEW EDIT TRIGGER
+  
   const paramName = searchParams.get('name') || '';
   const paramPhone = searchParams.get('phone') || '';
   const paramEmail = searchParams.get('email') || '';
   const paramAddress = searchParams.get('address') || '';
-  const paramItems = searchParams.get('items'); // <--- Extract items
+  const paramItems = searchParams.get('items'); 
 
   const [emails, setEmails] = useState<string[]>([]);
   const [phones, setPhones] = useState<string[]>([]);
   const [caretakers, setCaretakers] = useState<string[]>([]);
   const [donatedItems, setDonatedItems] = useState<DonatedItem[]>([]);
   const [visitSure, setVisitSure] = useState(true);
+  const [isFetchingEdit, setIsFetchingEdit] = useState(!!editId);
   
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [savedRecord, setSavedRecord] = useState<any>(null);
@@ -190,28 +191,9 @@ function HostForm() {
     }
   });
 
-  // HYDRATE 
-  useEffect(() => {
-    if (paramName) setValue("applicantName", paramName);
-    if (paramAddress) setValue("facilityLocation", paramAddress); 
-
-    if (paramPhone) setPhones([paramPhone]);
-    if (paramEmail) setEmails([paramEmail]);
-
-    if (paramItems) {
-      try {
-        const parsedItems = JSON.parse(paramItems);
-        if (Array.isArray(parsedItems) && parsedItems.length > 0) {
-          setDonatedItems(parsedItems);
-        }
-      } catch (e) {
-        console.error("Failed to parse items from URL", e);
-      }
-    }
-  }, [searchParams, setValue, paramName, paramAddress, paramPhone, paramEmail, paramItems]);
-
   const currentHelpedFinancially = watch("helpedFinancially");
 
+  // LOAD CENTERS
   useEffect(() => {
     const fetchCenters = async () => {
       try {
@@ -226,6 +208,67 @@ function HostForm() {
     };
     fetchCenters();
   }, []);
+
+  // HYDRATE FROM COPY 
+  useEffect(() => {
+    if (!editId) {
+      if (paramName) setValue("applicantName", paramName);
+      if (paramAddress) setValue("facilityLocation", paramAddress); 
+      if (paramPhone) setPhones([paramPhone]);
+      if (paramEmail) setEmails([paramEmail]);
+      if (paramItems) {
+        try {
+          const parsed = JSON.parse(paramItems);
+          if (Array.isArray(parsed) && parsed.length > 0) setDonatedItems(parsed);
+        } catch (e) { console.error(e) }
+      }
+    }
+  }, [editId, searchParams, setValue, paramName, paramAddress, paramPhone, paramEmail, paramItems]);
+
+  // HYDRATE FROM EDIT (DATABASE)
+  useEffect(() => {
+    if (editId) {
+      const fetchRecordToEdit = async () => {
+        try {
+          const res = await fetch(`/api/submissions?id=${editId}`);
+          const json = await res.json();
+          if (json.success && json.data) {
+            const d = json.data;
+            setValue("applicantName", d.applicantName || "");
+            setValue("facilityLocation", d.facilityLocation || "");
+            setValue("companyCoordinator", d.companyCoordinator || "");
+            setValue("centerVisited", d.centerVisited || "");
+            setValue("noOfChildren", d.noOfChildren ? String(d.noOfChildren) : "");
+            setValue("reportUploadLink", d.reportUploadLink || "");
+            setValue("futurePartnershipRemarks", d.futurePartnershipRemarks || "");
+            setValue("helpedFinancially", d.helpedFinancially ? 'Yes' : 'No');
+            if (d.financialAmount) setValue("financialAmount", String(d.financialAmount));
+            
+            // Format dates for input[type="date"]
+            if (d.eventDate) setValue("eventDate", new Date(d.eventDate).toISOString().split('T')[0]);
+            if (d.nextExpectedVisit) {
+              setValue("nextExpectedVisit", new Date(d.nextExpectedVisit).toISOString().split('T')[0]);
+              setVisitSure(true);
+            } else {
+              setVisitSure(false);
+            }
+
+            setPhones(d.phones || []);
+            setEmails(d.emails || []);
+            setCaretakers(d.caretakers || []);
+            if (d.itemsDonated) setDonatedItems(d.itemsDonated);
+          } else {
+            toast.error("Could not load record for editing.");
+          }
+        } catch (err) {
+          toast.error("Network error loading record.");
+        } finally {
+          setIsFetchingEdit(false);
+        }
+      };
+      fetchRecordToEdit();
+    }
+  }, [editId, setValue]);
 
   const onSubmit: SubmitHandler<HostFormInputs> = async (data) => {
     setSavedRecord(null);
@@ -250,16 +293,18 @@ function HostForm() {
       return;
     }
 
-    const toastId = toast.loading("Saving host data...");
+    const toastId = toast.loading(editId ? "Updating record..." : "Saving host data...");
 
-    const payload = {
+    // Create the payload
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: any = {
       applicantName: data.applicantName, 
       certificateType: 'HOST',
-      eventDate: data.eventDate,
+      eventDate: new Date(data.eventDate).toISOString(),
       facilityLocation: data.facilityLocation,
       companyCoordinator: data.companyCoordinator,
       centerVisited: data.centerVisited,
-      noOfChildren: data.noOfChildren,
+      noOfChildren: data.noOfChildren ? parseInt(data.noOfChildren) : null,
       phones: finalPhones,
       emails: finalEmails,
       caretakers: finalCaretakers,
@@ -267,13 +312,16 @@ function HostForm() {
       reportUploadLink: data.reportUploadLink,
       futurePartnershipRemarks: data.futurePartnershipRemarks,
       helpedFinancially: data.helpedFinancially === 'Yes',
-      financialAmount: data.financialAmount,
-      nextExpectedVisit: visitSure ? data.nextExpectedVisit : null,
+      financialAmount: data.financialAmount ? parseFloat(data.financialAmount) : null,
+      nextExpectedVisit: (visitSure && data.nextExpectedVisit) ? new Date(data.nextExpectedVisit).toISOString() : null,
     };
+
+    // If we are editing, attach the ID to the payload
+    if (editId) payload.id = editId;
 
     try {
       const response = await fetch('/api/submissions', {
-        method: 'POST',
+        method: editId ? 'PUT' : 'POST', // Dynamic HTTP Method!
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
@@ -281,11 +329,15 @@ function HostForm() {
       const json = await response.json();
 
       if (response.ok) {
-        toast.success("Host data saved successfully!", { id: toastId });
+        toast.success(editId ? "Record updated successfully!" : "Host data saved successfully!", { id: toastId });
         setSavedRecord(json.data); // Trigger Controls
-        reset();
-        setPhones([]); setEmails([]); setCaretakers([]); setDonatedItems([]); setVisitSure(true);
-        pendingPhone.current = ""; pendingEmail.current = ""; pendingCaretaker.current = ""; pendingItemName.current = ""; pendingItemQty.current = "";
+        
+        // Only clear the form if it was a new record
+        if (!editId) {
+          reset();
+          setPhones([]); setEmails([]); setCaretakers([]); setDonatedItems([]); setVisitSure(true);
+          pendingPhone.current = ""; pendingEmail.current = ""; pendingCaretaker.current = ""; pendingItemName.current = ""; pendingItemQty.current = "";
+        }
       } else {
         toast.error(`Failed to save: ${json.error || 'Unknown error'}`, { id: toastId });
       }
@@ -294,11 +346,19 @@ function HostForm() {
     }
   };
 
+  if (isFetchingEdit) {
+    return <div className="p-12 text-center text-slate-500 flex flex-col items-center"><Loader2 className="h-8 w-8 animate-spin mb-4 text-blue-500" /> Loading record data...</div>;
+  }
+
   return (
-    <div className="p-8 w-full max-w-4xl mx-auto bg-slate-50 min-h-screen text-slate-900">
+    <div className="p-4 md:p-8 w-full max-w-4xl mx-auto bg-slate-50 min-h-screen text-slate-900">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold text-slate-900">Host Certificate Form</h2>
-        <p className="text-sm text-slate-500">Log an event host and generate their certification of appreciation.</p>
+        <h2 className="text-2xl font-bold text-slate-900">
+          {editId ? "Edit Host Record" : "Host Certificate Form"}
+        </h2>
+        <p className="text-sm text-slate-500">
+          {editId ? "Update the details for this record below." : "Log an event host and generate their certification of appreciation."}
+        </p>
       </div>
 
       {savedRecord && (
@@ -315,7 +375,7 @@ function HostForm() {
         />
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-8 rounded-lg border border-slate-200 shadow-sm space-y-8">
+      <form onSubmit={handleSubmit(onSubmit)} className="bg-white p-6 md:p-8 rounded-lg border border-slate-200 shadow-sm space-y-8">
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
@@ -461,19 +521,21 @@ function HostForm() {
         </div>
 
         <div className="pt-4 flex justify-end gap-4">
-          <button 
-            type="button" 
-            onClick={() => { reset(); setPhones([]); setEmails([]); setCaretakers([]); setDonatedItems([]); setVisitSure(true); }}
-            className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
-          >
-            Clear
-          </button>
+          {!editId && (
+            <button 
+              type="button" 
+              onClick={() => { reset(); setPhones([]); setEmails([]); setCaretakers([]); setDonatedItems([]); setVisitSure(true); }}
+              className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors"
+            >
+              Clear
+            </button>
+          )}
           <button 
             type="submit" 
             disabled={isSubmitting || isLoadingCenters} 
-            className="px-6 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+            className={`px-6 py-2.5 text-sm font-medium text-white rounded-md transition-colors shadow-sm disabled:opacity-50 flex items-center gap-2 ${editId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
-            {isSubmitting ? 'Saving...' : 'Save Host Data'}
+            {isSubmitting ? 'Processing...' : (editId ? <><Save className="w-4 h-4" /> Update Record</> : 'Save Host Data')}
           </button>
         </div>
       </form>
