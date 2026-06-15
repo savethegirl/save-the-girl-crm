@@ -61,6 +61,7 @@ model Settings {
 
 model Submission {
   id              String          @id @default(uuid())
+  serialNumber    Int      @default(autoincrement()) @unique
   applicantName   String
   emails          String[]        
   phones          String[]

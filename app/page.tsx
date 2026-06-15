@@ -25,6 +25,7 @@ type DonatedItem = { item: string; quantity: number };
 
 type Submission = {
   id: string;
+  serialNumber: number; 
   applicantName: string;
   certificateType: string;
   createdAt: string;
@@ -200,11 +201,17 @@ export default function AdminDashboard() {
 
   const filteredSubmissions = submissions.filter(sub => {
     const query = searchQuery.toLowerCase().trim();
+    
+    // Create the formatted ID for searching (e.g. stg/cms/0000001)
+    const formattedId = sub.serialNumber ? `stg/cms/${String(sub.serialNumber).padStart(7, '0')}` : "";
+    
     const matchesSearch = 
       query === "" || 
       (sub.applicantName && sub.applicantName.toLowerCase().includes(query)) ||
       (sub.phones && sub.phones.some(phone => phone.includes(query))) ||
-      (sub.emails && sub.emails.some(email => email.toLowerCase().includes(query)));
+      (sub.emails && sub.emails.some(email => email.toLowerCase().includes(query))) ||
+      (sub.serialNumber && String(sub.serialNumber).includes(query)) ||
+      (formattedId.includes(query)); // <--- Added ID Search Here!
 
     const matchesType = typeFilter === "All Types" || sub.certificateType === typeFilter.toUpperCase();
     const matchesStatus = statusFilter === "All Status" || sub.status === statusFilter.toUpperCase();
@@ -243,7 +250,7 @@ export default function AdminDashboard() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
               <input 
                 type="text" 
-                placeholder="Search by name, phone, email, or item..." 
+                placeholder="Search by ID, name, phone, or email..." //
                 className="w-full pl-9 pr-4 py-2.5 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -295,7 +302,7 @@ export default function AdminDashboard() {
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
                 <tr>
-                  <th className="px-6 py-4">Applicant Name</th>
+                  <th className="px-6 py-4">Applicant & ID</th>
                   <th className="px-6 py-4">Contact Details</th>
                   <th className="px-6 py-4">Type</th>
                   <th className="px-6 py-4">Submitted Date</th>
@@ -310,7 +317,12 @@ export default function AdminDashboard() {
                     onClick={() => router.push(`/submissions/${sub.id}`)}
                     className="group cursor-pointer hover:bg-white hover:shadow-lg hover:relative hover:z-10 hover:ring-1 hover:ring-blue-300 transition-all"
                   >
-                    <td className="px-6 py-4 font-medium text-slate-900 align-top">{sub.applicantName}</td>
+                    <td className="px-6 py-4 align-top">
+                      <div className="font-medium text-slate-900">{sub.applicantName}</div>
+                      <div className="text-xs text-slate-400 font-mono mt-1 tracking-wider uppercase">
+                        STG/CMS/{String(sub.serialNumber).padStart(7, '0')}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 align-top">
                       <div className="space-y-1.5">
                         {sub.phones && sub.phones.length > 0 && (
@@ -381,7 +393,10 @@ export default function AdminDashboard() {
                 <div className="flex justify-between items-start">
                   <div>
                     <h3 className="font-bold text-slate-900 text-lg">{sub.applicantName}</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">{new Date(sub.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    <div className="text-[11px] font-mono text-slate-400 mt-0.5 tracking-wider uppercase">
+                      STG/CMS/{String(sub.serialNumber).padStart(7, '0')}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">{new Date(sub.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                   </div>
                   <span className="bg-slate-100 text-slate-700 px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border border-slate-200">
                     {sub.certificateType}

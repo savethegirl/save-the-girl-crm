@@ -125,11 +125,15 @@ export async function POST(req: Request) {
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const { applicantName, postRole, startDate, endDate } = submission;
     
-    // --- FORCE ALL CAPS FOR CERTIFICATE NAME ---
     const pdfDisplayName = (applicantName || "Unknown Name").toUpperCase();
 
     const textColor = rgb(0.1, 0.1, 0.1);
     
+    const paddedId = String(submission.serialNumber).padStart(7, '0');
+    const refNumber = `STG/CMS/${paddedId}`;
+    const refFontSize = 24; 
+    // --------------------------------------------
+
     const formatDt = (dt: Date | null) => dt ? new Date(dt).toLocaleDateString('en-IN') : 'N/A';
     const generationDate = new Date().toLocaleDateString('en-IN');
     const center = 1030; 
@@ -139,6 +143,8 @@ export async function POST(req: Request) {
       case 'VOLUNTEER':
         page.drawText(generationDate, { x: 160, y: 1137, size: 28, font: boldFont, color: textColor });
         drawScaledCenteredText(page, pdfDisplayName, boldFont, 56, 775, center, 770, textColor);
+        
+        page.drawText(refNumber, { x: 1380, y: 1137, size: refFontSize, font: boldFont, color: textColor });
         
         const volRoleText = postRole || "Volunteer";
         const volRoleWidth = boldFont.widthOfTextAtSize(volRoleText, 36);
@@ -151,6 +157,8 @@ export async function POST(req: Request) {
         page.drawText(generationDate, { x: 182, y: 870, size: 28, font: boldFont, color: textColor });
         drawScaledCenteredText(page, pdfDisplayName, boldFont, 56, 1200, center, 773, textColor);
         
+        page.drawText(refNumber, { x: 1600, y: 870, size: refFontSize, font: boldFont, color: textColor });
+
         const internRoleText = postRole || "Intern";
         const internRoleWidth = boldFont.widthOfTextAtSize(internRoleText, 36);
         page.drawText(internRoleText, { x: center - (internRoleWidth / 2), y: 565, size: 36, font: boldFont, color: textColor });
@@ -166,10 +174,11 @@ export async function POST(req: Request) {
         
         drawScaledCenteredText(page, pdfDisplayName, boldFont, 48, visNameMaxWidth, visNameLineCenter, 910, textColor);
 
+        page.drawText(refNumber, { x: 150, y: 1100, size: refFontSize, font: boldFont, color: textColor });
+
         const visitDateStr = formatDt(submission.visitDate);
         const facilityStr = submission.centerVisited || "Our Center";
         
-        // --- VISITOR FORMATTING FIX: Clean pipe separator instead of squished comma ---
         const centerAndDate = `${facilityStr.toUpperCase()}   |   ${visitDateStr}`;
         
         const facilityLineStartX = 400;
@@ -182,7 +191,6 @@ export async function POST(req: Request) {
         let visDonationStr = "N/A";
         const visItems = submission.itemsDonated as { item: string, quantity: number }[] | null;
         
-        // --- UPPERCASE ITEMS FOR VISITOR ---
         if (visItems && visItems.length > 0) {
             visDonationStr = options?.includeQuantity 
                 ? visItems.map(i => `${i.item.toUpperCase()} x${i.quantity}`).join(', ')
@@ -228,16 +236,17 @@ export async function POST(req: Request) {
         }
         break;
       
-        case 'DONOR':
+      case 'DONOR':
         const donorDateStr = formatDt(submission.createdAt);
         drawScaledCenteredText(page, donorDateStr, boldFont, 28, 260, 370, 1000, textColor);
 
         drawScaledCenteredText(page, pdfDisplayName, boldFont, 64, 1200, 1075, 755, textColor);
 
+        page.drawText(refNumber, { x: 1600, y: 1000, size: refFontSize, font: boldFont, color: textColor });
+
         let donorDonationStr = "N/A";
         const donorItems = submission.itemsDonated as { item: string, quantity: number }[] | null;
         
-        // --- UPPERCASE ITEMS FOR DONOR ---
         if (donorItems && donorItems.length > 0) {
             donorDonationStr = options?.includeQuantity 
                 ? donorItems.map(i => `${i.item.toUpperCase()} x${i.quantity}`).join(', ')
@@ -291,6 +300,8 @@ export async function POST(req: Request) {
         const hostNameLineCenter = 1064 + ((rightMarginX - 1064) / 2);
         drawScaledCenteredText(page, pdfDisplayName, boldFont, 48, 750, hostNameLineCenter, 872, textColor);
 
+        page.drawText(refNumber, { x: 1390, y: 1050, size: refFontSize, font: boldFont, color: textColor });
+
         const hostFacilityStr = (submission.facilityLocation || "Our Center").toUpperCase();
         const hostFacWidth = boldFont.widthOfTextAtSize(hostFacilityStr, 38);
         const hostFacLineCenter = 791 + ((rightMarginX - 791) / 2);
@@ -299,7 +310,6 @@ export async function POST(req: Request) {
         let hostDonationStr = "N/A";
         const hostItems = submission.itemsDonated as { item: string, quantity: number }[] | null;
         
-        // --- UPPERCASE ITEMS FOR HOST ---
         if (hostItems && hostItems.length > 0) {
             hostDonationStr = options?.includeQuantity 
                 ? hostItems.map(i => `${i.item.toUpperCase()} x${i.quantity}`).join(', ')
